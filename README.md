@@ -1,4 +1,0 @@
-Construct
-=========
-
-Mathematics prototyping system
