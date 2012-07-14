@@ -15,11 +15,7 @@ int main(int argc, char **argv) {
   VectorField f = d-e;
   f = f * ScalarField(4.f);
   cout << f.eval(Vec3(0,0,0)) << endl;
-
-  cout << "--------" << endl;
-  VectorField I = identity();
-  cout << I.eval(Vec3(1,1,1)) << endl;
-  cout << I.grad(Vec3(1,1,1)) << endl;
+  cout << f.grad(Vec3(0,0,0)) << endl;
 
   return 0;
 }

@@ -33,30 +33,33 @@ template<typename T>
 Field<T> operator-(Field<T> A, Field<T> B)
 { return Field<T>(new SubtractionField<T>(A.node,B.node)); }
 
-// Scalar-Vector Multiply
-struct SVMultField : public VectorFieldNode {
-  SFNodePtr s;
-  VFNodePtr v;
-  SVMultField(SFNodePtr s, VFNodePtr v) : s(s), v(v) { }
-  Vec3 eval(const Vec3& x) const
-  { return v->eval(x) * s->eval(x); }
-  Mat3 grad(const Vec3& x) const
-  { return v->grad(x)*s->eval(x) + v->eval(x) * s->grad(x).transpose(); }
+template<typename LeftType, typename RightType, typename ResultType>
+struct MultiplicationField : public ConstructFieldNode<ResultType> {
+  typename ConstructFieldNode<LeftType>::ptr  A;
+  typename ConstructFieldNode<RightType>::ptr B;
+  MultiplicationField(
+    typename ConstructFieldNode<LeftType>::ptr  A,
+    typename ConstructFieldNode<RightType>::ptr B) : A(A), B(B) { }
+  ResultType eval(const Vec3& x) const
+  { return A->eval(x) * B->eval(x); }
+  typename FieldInfo<ResultType>::GradType grad(const Vec3& x) const
+  { return A->grad(x) * B->eval(x) + A->eval(x) * B->grad(x); }
 };
-VectorField operator*(VectorField v, ScalarField s)
-{ return VectorField(new SVMultField(s.node, v.node)); }
-VectorField operator*(ScalarField s, VectorField v)
-{ return VectorField(new SVMultField(s.node, v.node)); }
 
-// Matrix-Vector Multiply
-struct MVMultField : public VectorFieldNode {
-  MFNodePtr m;
-  VFNodePtr v;
-  MVMultField(MFNodePtr m, VFNodePtr v) : m(m), v(v) { }
-  Vec3 eval(const Vec3& x) const { return m->eval(x) * v->eval(x); }
-};
-VectorField operator*(MatrixField m, VectorField v) 
-{ return VectorField(new MVMultField(m.node, v.node)); }
+template<> Mat3 MultiplicationField<Vec3,real,Vec3>::grad(const Vec3& x) const
+{ return A->grad(x) * B->eval(x) + A->eval(x) * B->grad(x).transpose(); }
+
+ScalarField operator*(ScalarField a, ScalarField b)
+{ return ScalarField(new MultiplicationField<real,real,real>(a.node, b.node)); }
+VectorField operator*(VectorField v, ScalarField s)
+{ return VectorField(new MultiplicationField<Vec3,real,Vec3>(v.node, s.node)); }
+VectorField operator*(ScalarField s, VectorField v)
+{ return VectorField(new MultiplicationField<Vec3,real,Vec3>(v.node, s.node)); }
+// TODO: Need to specify special Matrix-(Matrix,Vector) grads
+//VectorField operator*(MatrixField m, VectorField v) 
+//{ return VectorField(new MultiplicationField<Mat3,Vec3,Vec3>(m.node, v.node)); }
+//MatrixField operator*(MatrixField a, MatrixField b) 
+//{ return MatrixField(new MultiplicationField<Mat3,Mat3,Mat3>(a.node, b.node)); }
 
 /////////////////////////////////////
 
@@ -67,6 +70,13 @@ struct IdentityField : public VectorFieldNode {
 };
 inline VectorField identity()
 { return new IdentityField(); }
+
+// Inner Product
+struct InnerProductField : public ScalarFieldNode {
+  VFNodePtr A, B;
+  InnerProductField(VFNodePtr A, VFNodePtr B) : A(A), B(B) { }
+  real eval(const Vec3& x) const { return 
+};
 
 };
 #endif
