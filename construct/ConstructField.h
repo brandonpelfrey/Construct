@@ -5,83 +5,86 @@
 #include "construct/ConstructBase.h"
 namespace Construct {
 
-//////////////////////////////////////////////////////////
-// Field node types. Each is evaluatable and possibly once differentiable
-template<typename evalType, typename gradType>
-struct ConstructFieldNode {
-  virtual evalType eval(const Vec3& x) const = 0;
-  virtual gradType grad(const Vec3& x) const ;
+template<typename> struct FieldInfo;
+template<> struct FieldInfo<real> {
+  typedef Vec3 GradType;
+  static inline real Zero() { return static_cast<real>(0); }
+};
+template<> struct FieldInfo<Vec3> {
+  typedef Mat3 GradType;
+  static inline Vec3 Zero() { return Vec3::Zero(); }
+};
+template<> struct FieldInfo<Mat3> {
+  typedef Mat3 GradType;
+  static inline Mat3 Zero() { return Mat3::Zero(); }
 };
 
-typedef ConstructFieldNode<float, Vec3> ScalarFieldNode;
-typedef ConstructFieldNode<Vec3, Mat3> VectorFieldNode;
-typedef ConstructFieldNode<Mat3, Mat3> MatrixFieldNode;
+//////////////////////////////////////////////////////////
+// Field node types. Each is evaluatable and possibly once differentiable
+template<typename T>
+struct ConstructFieldNode {
+  typedef std::shared_ptr<ConstructFieldNode<T> > ptr;
+  virtual T eval(const Vec3& x) const = 0;
+  virtual typename FieldInfo<T>::GradType grad(const Vec3& x) const
+  { return FieldInfo<typename FieldInfo<T>::GradType>::Zero(); }
+};
+
+typedef ConstructFieldNode<float> ScalarFieldNode;
+typedef ConstructFieldNode<Vec3> VectorFieldNode;
+typedef ConstructFieldNode<Mat3> MatrixFieldNode;
 
 //////////////////////////////////////////////////////////
 // Special case: grad(Mat3) creates rank-3 tensor which
 // we don't have. As a default behavior, we will just return
 // an identity matrix. This should never be overridden.
 template<>
-Mat3 ConstructFieldNode<Mat3,Mat3>::grad(const Vec3& x) const
+Mat3 ConstructFieldNode<Mat3>::grad(const Vec3& x) const
 { return Mat3::Identity(); }
-
-// Pointers to fields used in constructing expression tree
-typedef std::shared_ptr<ScalarFieldNode> SFNodePtr;
-typedef std::shared_ptr<VectorFieldNode> VFNodePtr;
-typedef std::shared_ptr<MatrixFieldNode> MFNodePtr;
 
 //////////////////////////////////////////////////////////
 //! Constant Fields
 // Forward declared for use in Field constructors (below)
-template<typename evalType, typename gradType>
-struct ConstantField : public ConstructFieldNode<evalType, gradType> {
-  evalType value;
-  ConstantField(const evalType& value) : value(value) { }
-  evalType eval(const Vec3& x) const { return value; }
-  gradType grad(const Vec3& x) const { return gradType::Zero(); }
+template<typename T>
+struct ConstantField : public ConstructFieldNode<T> {
+  typedef typename FieldInfo<T>::GradType GradType;
+  T value;
+  ConstantField() : value(FieldInfo<T>::Zero()) { } 
+  ConstantField(const T& value) : value(value) { }
+  T eval(const Vec3& x) const { return value; }
+  GradType grad(const Vec3& x) const { return FieldInfo<GradType>::Zero(); }
 };
-typedef ConstantField<real,Vec3> ConstantScalarField;
-typedef ConstantField<Vec3,Mat3> ConstantVectorField;
-typedef ConstantField<Mat3,Mat3> ConstantMatrixField;
+typedef ConstantField<real> ConstantScalarField;
+typedef ConstantField<Vec3> ConstantVectorField;
+typedef ConstantField<Mat3> ConstantMatrixField;
 
 //////////////////////////////////////////////////////////
 //! The user-accessible field types: Scalar,Vector,Matrix
-struct ScalarField {
-  SFNodePtr node;
-  ScalarField() 
-  : node(SFNodePtr(new ConstantScalarField(0))) { }
-  ScalarField(real value) 
-  : node(SFNodePtr(new ConstantScalarField(value))) { }
-  ScalarField(SFNodePtr node)
-  : node(node) { }
+template<typename T>
+struct Field {
+  typedef typename ConstructFieldNode<T>::ptr NodePtr;
+  NodePtr node;
+  Field() : node(NodePtr(new ConstantField<T>())) {}
+  Field(const T& value) : node(NodePtr(new ConstantField<T>(value))) { }
 
-  real eval(const Vec3& x) const { return node->eval(x); }
-  Vec3 grad(const Vec3& x) const { return node->grad(x); }
+  Field(ConstructFieldNode<T>* node) : node(NodePtr(node)) { }
+  Field(NodePtr node) : node(node) { }
+ 
+  //! Evaluates the underlying expression tree
+  T eval(const Vec3& x) const 
+  { return node->eval(x); }
+  typename FieldInfo<T>::GradType grad(const Vec3& x) const
+  { return node->grad(x); }
 };
-struct VectorField {
-  VFNodePtr node;
-  VectorField() 
-  : node(VFNodePtr(new ConstantVectorField(Vec3::Zero()))) { }
-  VectorField(const Vec3& value) 
-  : node(VFNodePtr(new ConstantVectorField(value))) { }
-  VectorField(VFNodePtr node)
-  : node(node) { }
 
-  Vec3 eval(const Vec3& x) const { return node->eval(x); }
-  Mat3 grad(const Vec3& x) const { return node->grad(x); }
-};
-struct MatrixField {
-  MFNodePtr node;
-  MatrixField() 
-  : node(MFNodePtr(new ConstantMatrixField(Mat3::Zero()))) { }
-  MatrixField(const Mat3& value) 
-  : node(MFNodePtr(new ConstantMatrixField(value))) { }
-  MatrixField(MFNodePtr node)
-  : node(node) { }
+// Convenience type defs
+typedef typename ConstructFieldNode<real>::ptr SFNodePtr;
+typedef typename ConstructFieldNode<Vec3>::ptr VFNodePtr;
+typedef typename ConstructFieldNode<Mat3>::ptr MFNodePtr;
 
-  Mat3 eval(const Vec3& x) const { return node->eval(x); }
-  Mat3 grad(const Vec3& x) const { return node->grad(x); }
-};
+// Types that the user actually uses
+typedef Field<real> ScalarField;
+typedef Field<Vec3> VectorField;
+typedef Field<Mat3> MatrixField;
 
 };
 #endif
