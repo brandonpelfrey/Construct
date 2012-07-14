@@ -25,8 +25,8 @@ template<typename T>
 struct ConstructFieldNode {
   typedef std::shared_ptr<ConstructFieldNode<T> > ptr;
   virtual T eval(const Vec3& x) const = 0;
-  virtual typename FieldInfo<T>::GradType grad(const Vec3& x) const
-  { return FieldInfo<typename FieldInfo<T>::GradType>::Zero(); }
+  virtual typename FieldInfo<T>::GradType grad(const Vec3& x) const 
+  { return FieldInfo<typename FieldInfo<T>::GradType>::Zero(); } 
 };
 
 typedef ConstructFieldNode<float> ScalarFieldNode;

@@ -1,6 +1,5 @@
 #ifndef ConstructBase_H
 #define ConstructBase_H
-#include <cmath>
 #include <Eigen/Dense>
 #include <memory>
 
