@@ -34,14 +34,6 @@ typedef ConstructFieldNode<Vec3> VectorFieldNode;
 typedef ConstructFieldNode<Mat3> MatrixFieldNode;
 
 //////////////////////////////////////////////////////////
-// Special case: grad(Mat3) creates rank-3 tensor which
-// we don't have. As a default behavior, we will just return
-// an identity matrix. This should never be overridden.
-template<>
-Mat3 ConstructFieldNode<Mat3>::grad(const Vec3& x) const
-{ return Mat3::Identity(); }
-
-//////////////////////////////////////////////////////////
 //! Constant Fields
 // Forward declared for use in Field constructors (below)
 template<typename T>
