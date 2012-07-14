@@ -45,6 +45,20 @@ struct SVMultField : public VectorFieldNode {
 };
 VectorField operator*(VectorField v, ScalarField s)
 { return VectorField(new SVMultField(s.node, v.node)); }
+VectorField operator*(ScalarField s, VectorField v)
+{ return VectorField(new SVMultField(s.node, v.node)); }
+
+// Matrix-Vector Multiply
+struct MVMultField : public VectorFieldNode {
+  MFNodePtr m;
+  VFNodePtr v;
+  MVMultField(MFNodePtr m, VFNodePtr v) : m(m), v(v) { }
+  Vec3 eval(const Vec3& x) const { return m->eval(x) * v->eval(x); }
+};
+VectorField operator*(MatrixField m, VectorField v) 
+{ return VectorField(new MVMultField(m.node, v.node)); }
+
+/////////////////////////////////////
 
 // Identity field
 struct IdentityField : public VectorFieldNode {
