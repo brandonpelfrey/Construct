@@ -32,7 +32,7 @@ struct InnerProductField : public ScalarFieldNode {
   VFNodePtr A, B;
   InnerProductField(VFNodePtr A, VFNodePtr B) : A(A), B(B) { }
   real eval(const Vec3& x) const { return A->eval(x).dot(B->eval(x)); }
-  Vec3 grad(const Vec3& x) const 
+  Vec3 grad(const Vec3& x) const // TODO: Check for correctness 
   { return A->grad(x).transpose()*B->eval(x) + B->grad(x).transpose()*A->eval(x); }
 };
 inline ScalarField dot(VectorField a, VectorField b)
@@ -45,6 +45,8 @@ struct WarpField : public ConstructFieldNode<T> {
   VFNodePtr g;
   WarpField(typename ConstructFieldNode<T>::ptr f, VFNodePtr g) : f(f), g(g) { }
   T eval(const Vec3& x) const { return f->eval(g->eval(x)); }
+  typename FieldInfo<T>::GradType grad(const Vec3& x) const
+  { return f->grad(g->eval(x)) * g->grad(x); }
 };
 template<typename T>
 Field<T> warp(Field<T> f, VectorField v)

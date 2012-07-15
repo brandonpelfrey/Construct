@@ -1,6 +1,7 @@
 #ifndef ConstructField_h
 #define ConstructField_h
 
+#include <type_traits>
 #include <memory>
 #include "construct/ConstructBase.h"
 namespace Construct {
@@ -67,6 +68,9 @@ struct Field {
   typename FieldInfo<T>::GradType grad(const Vec3& x) const
   { return node->grad(x); }
 };
+
+template<> Mat3 Field<Mat3>::grad(const Vec3& x) const
+{ throw std::logic_error("Can not take gradients of matrix fields in the Construct."); }
 
 // Convenience type defs
 typedef typename ConstructFieldNode<real>::ptr SFNodePtr;
