@@ -81,9 +81,9 @@ MatrixField operator*(ScalarField s, MatrixField m)
 template<typename T>
 struct DivisionField : public ConstructFieldNode<T> {
   typename ConstructFieldNode<T>::ptr A;
-  SFNodePtr divisor;
-  DivisionField(typename ConstructFieldNode<T>::ptr A, SFNodePtr B) 
-  : A(A), B(B) { }
+  SFNodePtr B;
+  DivisionField(typename ConstructFieldNode<T>::ptr A, SFNodePtr divisor) 
+  : A(A), B(divisor) { }
   T eval(const Vec3& x) const
   { return A->eval(x) / B->eval(x); }
   //typename FieldInfo<T>::GradType grad(const Vec3& x) const
