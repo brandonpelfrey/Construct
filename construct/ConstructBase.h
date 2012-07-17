@@ -2,6 +2,7 @@
 #define ConstructBase_H
 #include <Eigen/Dense>
 #include <memory>
+#include <stdexcept>
 
 namespace Construct {
   //! Floating point precision

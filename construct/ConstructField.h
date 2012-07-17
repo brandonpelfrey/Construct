@@ -45,9 +45,11 @@ struct ConstantField : public ConstructFieldNode<T> {
   T eval(const Vec3& x) const { return value; }
   GradType grad(const Vec3& x) const { return FieldInfo<GradType>::Zero(); }
 };
+
 typedef ConstantField<real> ConstantScalarField;
 typedef ConstantField<Vec3> ConstantVectorField;
 typedef ConstantField<Mat3> ConstantMatrixField;
+
 
 //////////////////////////////////////////////////////////
 //! The user-accessible field types: Scalar,Vector,Matrix
@@ -80,6 +82,10 @@ typedef typename ConstructFieldNode<Mat3>::ptr MFNodePtr;
 typedef Field<real> ScalarField;
 typedef Field<Vec3> VectorField;
 typedef Field<Mat3> MatrixField;
+
+template<typename T>
+inline Field<T> constant(T value)
+{ return Field<T>(value); }
 
 };
 #endif
