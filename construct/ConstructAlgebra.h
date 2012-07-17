@@ -45,11 +45,18 @@ struct WarpField : public ConstructFieldNode<T> {
   VFNodePtr g;
   WarpField(typename ConstructFieldNode<T>::ptr f, VFNodePtr g) : f(f), g(g) { }
   T eval(const Vec3& x) const { return f->eval(g->eval(x)); }
-  typename FieldInfo<T>::GradType grad(const Vec3& x) const
-  { return f->grad(g->eval(x)) * g->grad(x); }
+  typename FieldInfo<T>::GradType grad(const Vec3& x) const { 
+		throw std::logic_error("Can not take gradients of matrix fields in the Construct."); 
+		return FieldInfo<typename FieldInfo<T>::GradType>::Zero();
+	}
 };
+template<> Vec3 WarpField<real>::grad(const Vec3& x) const
+{ return g->grad(x) * f->grad(g->eval(x)); }
+template<> Mat3 WarpField<Vec3>::grad(const Vec3& x) const
+{ return g->grad(x) * f->grad(g->eval(x)); }
+
 template<typename T>
-Field<T> warp(Field<T> f, VectorField v)
+inline Field<T> warp(Field<T> f, VectorField v)
 { return Field<T>(new WarpField<T>(f.node, v.node)); }
 
 // Cross Product

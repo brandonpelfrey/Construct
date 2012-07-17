@@ -36,13 +36,16 @@ struct LineIntegralField : public ConstructFieldNode<T> {
 		real distance_travelled = static_cast<real>(0);
 		real target_distance = distance->eval(x);
 		T integral = FieldInfo<T>::Zero();
+		real step;
 
+		Vec3 p = start->eval(x);							 // Starting point along the integration	
 		do {
-			Vec3 p = start->eval(x);
-			integral += field->eval(p);
-			const Vec3 dx = flow->eval(p) * step_size->eval(p);
-			p += dx;
-		} while(distance_travelled <= target_distance);
+			step = step_size->eval(p);           // Get the step size to use
+			integral += field->eval(p) * step;   // Accumulate integrand
+			const Vec3 dx = flow->eval(p) * step;// Compute new direction
+			p += dx;                             // Move sample point to the new position
+			target_distance -= step;             // Subtract how much farther we must go
+		} while(target_distance >= static_cast<real>(0));
 		
 		return integral;
 	}

@@ -1,2 +1,2 @@
 itarget:
-	g++ -std=c++0x main.cpp -I. -o test
+	g++ -Wall -std=c++0x -O4 -fopenmp -msse -fexpensive-optimizations main.cpp -I. -o test
