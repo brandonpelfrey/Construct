@@ -52,5 +52,32 @@ template<typename T>
 Field<T> warp(Field<T> f, VectorField v)
 { return Field<T>(new WarpField<T>(f.node, v.node)); }
 
+// Cross Product
+struct CrossProductField : public VectorFieldNode {
+  VFNodePtr f,g;
+  CrossProductField(VFNodePtr f, VFNodePtr g) : f(f), g(g) { }
+  Vec3 eval(const Vec3& x) const { return f->eval(x).cross(g->eval(x)); }
+  Mat3 grad(const Vec3& x) const {
+    Mat3 df = f->grad(x), dg = g->grad(x), result;
+    Vec3 fx = f->eval(x), gx = g->eval(x);
+    result.row(0) = gx.z()*df.row(1) + fx.y()*dg.row(2) - fx.z()*dg.row(1) - gx.y()*df.row(2);
+    result.row(1) = gx.x()*df.row(2) + fx.z()*dg.row(0) - fx.x()*dg.row(2) - gx.z()*df.row(0);
+    result.row(2) = gx.y()*df.row(0) + fx.x()*dg.row(1) - fx.y()*dg.row(0) - gx.x()*df.row(1);
+    return result;
+  }
+};
+inline VectorField cross(VectorField f, VectorField g)
+{ return VectorField(new CrossProductField(f.node, g.node)); }
+
+// Outer Product
+struct OuterProductField : public MatrixFieldNode {
+  VFNodePtr f, g;
+  OuterProductField(VFNodePtr f, VFNodePtr g) : f(f), g(g) { }
+  Mat3 eval(const Vec3& x) const { return f->eval(x) * g->eval(x).transpose(); }
+  // No grad(MatrixField) allowed
+};
+inline MatrixField outer_product(VectorField f, VectorField g)
+{ return MatrixField(new OuterProductField(f.node, g.node)); }
+
 };
 #endif
