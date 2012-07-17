@@ -1,7 +1,6 @@
 #ifndef ConstructField_h
 #define ConstructField_h
 
-#include <type_traits>
 #include <memory>
 #include "construct/ConstructBase.h"
 namespace Construct {
