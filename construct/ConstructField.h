@@ -1,7 +1,6 @@
 #ifndef ConstructField_h
 #define ConstructField_h
 
-#include <type_traits>
 #include <memory>
 #include "construct/ConstructBase.h"
 namespace Construct {
@@ -46,6 +45,8 @@ struct ConstantField : public ConstructFieldNode<T> {
   T eval(const Vec3& x) const { return value; }
   GradType grad(const Vec3& x) const { return FieldInfo<GradType>::Zero(); }
 };
+template<> Mat3 ConstantField<Mat3>::grad(const Vec3& x) const
+{ throw std::logic_error("Can not take gradients of matrix fields in the Construct."); }
 
 typedef ConstantField<real> ConstantScalarField;
 typedef ConstantField<Vec3> ConstantVectorField;

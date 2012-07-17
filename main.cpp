@@ -4,13 +4,11 @@ using namespace Construct;
 using namespace std;
 
 int main(int argc, char **argv) {
-	auto I = identity() / length(identity());
-	Domain D = Domain(64,64,64, Vec3(-1,-1,-1), Vec3(1,1,1));
-	auto Ig = writeToGrid(I, constant(Vec3(0,0,0)), D);
+	auto x = identity();
+  auto v1 = constant(Vec3(1,2,3));
+  auto z = outer_product(x, v1);
 
-	auto li = lineIntegral(I, identity(), identity() - constant(Vec3(0,0,0)), constant(1.f), constant(.1f));
+  cout << z.eval(Vec3(1,1,1)) << endl;
 
-  cout << I.eval(Vec3(-1,-1,-1)) << endl;
-	cout << Ig.eval(Vec3(-1,-1,-1)) << endl;
   return 0;
 }
