@@ -102,9 +102,9 @@ template<> Mat3 DivisionField<Vec3>::grad(const Vec3& x) const
 template<> Mat3 DivisionField<Mat3>::grad(const Vec3& x) const
 { throw std::logic_error("Can not take gradients of matrix fields in the Construct."); }
 
-
-
-
+template<typename T>
+inline Field<T> operator/(Field<T> field, ScalarField divisor)
+{ return Field<T>(new DivisionField<T>(field.node, divisor.node)); }
 
 
 };
