@@ -86,9 +86,24 @@ struct DivisionField : public ConstructFieldNode<T> {
   : A(A), B(divisor) { }
   T eval(const Vec3& x) const
   { return A->eval(x) / B->eval(x); }
-  //typename FieldInfo<T>::GradType grad(const Vec3& x) const
-  //{ return A->grad(x) / B->eval(x) + A->eval(x) * B->grad(x); }
+  typename FieldInfo<T>::GradType grad(const Vec3& x) const
+  { 
+    float div = B->eval(x);
+    return (A->grad(x)*div - A->eval(x) * B->grad(x)) / (div*div);
+  }
 };
+
+// TODO: Check to see if AB' should be transposed!
+template<> Mat3 DivisionField<Vec3>::grad(const Vec3& x) const
+{
+    float div = B->eval(x);
+    return (A->grad(x)*div - A->eval(x) * B->grad(x).transpose()) / (div*div);
+}
+template<> Mat3 DivisionField<Mat3>::grad(const Vec3& x) const
+{ throw std::logic_error("Can not take gradients of matrix fields in the Construct."); }
+
+
+
 
 
 
