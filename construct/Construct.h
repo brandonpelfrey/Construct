@@ -5,3 +5,4 @@
 #include "construct/ConstructField.h"
 #include "construct/ConstructArithmetic.h"
 #include "construct/ConstructAlgebra.h"
+#include "construct/ConstructCalculus.h"
