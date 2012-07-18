@@ -12,7 +12,7 @@ struct Domain {
 		res[0] = rx; res[1] = ry; res[2] = rz;
 		extent = bmax - bmin;
 		H = extent.cwiseQuotient( Vec3(res[0]-1, res[1]-1, res[2]-1) );
-		Hinverse = Vec3(1,1,1).cwiseQuotient(H);
+		Hinverse = Vec3(1.0/H[0], 1.0/H[1], 1.0/H[2]);
 	}
 
 	//! Return true if lattice point is inside the grid
