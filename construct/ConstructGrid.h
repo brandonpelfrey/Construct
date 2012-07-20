@@ -76,9 +76,11 @@ struct ConstructGrid : public ConstructFieldNode<T> {
 		throw std::logic_error("Gradient of Matrix Field not supported");
 		return FieldInfo<typename FieldInfo<T>::GradType>::Zero(); 
 	}
- 
+
+	//! Divergence-Free projection. Only specialized for vector fields 
 	void divFree(int iterations) { }
-  
+ 
+	//! Load a gridded field from disk 
 	void load(const char* path) { 
     FILE *f = fopen(path, "rb");
 		Domain newdomain;
@@ -96,6 +98,7 @@ struct ConstructGrid : public ConstructFieldNode<T> {
     fclose(f);
   }
 
+	//! Save a gridded field to disk
   void save(const char* path) {
     FILE *f = fopen(path, "wb");
     int N = domain.res[0] * domain.res[1] * domain.res[2];
@@ -170,9 +173,9 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
         if(j==domain.res[1]-1) { pnew.set(i,j,k, p.get(i,domain.res[1]-2,k)); continue; }
         if(k==domain.res[2]-1) { pnew.set(i,j,k, p.get(i,j,domain.res[2]-2)); continue; }
 
-        const float h2 = 1;//domain.H[0]*domain.H[0];
+        const real h2 = 1;//domain.H[0]*domain.H[0];
 
-        float P = -h2 * divergence.get(i,j,k);
+        real P = -h2 * divergence.get(i,j,k);
         P += p.get(i+1,j,k);
         P += p.get(i-1,j,k);
         P += p.get(i,j+1,k);
@@ -180,7 +183,7 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
         P += p.get(i,j,k+1);
         P += p.get(i,j,k-1);
 
-        float newp = P / 6;
+        real newp = P / 6;
         pnew.set(i,j,k, newp);
       }
 
@@ -222,6 +225,24 @@ inline Field<T> writeToGrid(Field<T> field, Field<T> outside, Domain domain) {
 	ConstructGrid<T> *grid = new ConstructGrid<T>(domain, outside.node);
   grid->bakeData(field.node);
   return Field<T>(grid);
+}
+
+template<typename T>
+inline Field<T> loadGriddedField(const char *path, Field<T> outside) {
+	const Domain fake(1,1,1, Vec3(-1,-1,-1), Vec3(1,1,1));
+	ConstructGrid<T> *grid = new ConstructGrid<T>(fake, outside.node);
+	grid->load(path);
+	return Field<T>(grid);
+}
+
+template<typename T>
+inline void saveGriddedField(const char *path, Field<T> field, Domain domain) {
+	// TODO: If this is a grid already (need introspection/reflection)
+	//       then save: Don't write to grid twice.
+	Field<T> zero(FieldInfo<T>::Zero());
+	ConstructGrid<T> grid = ConstructGrid<T>(domain, zero.node);
+	grid.bakeData(field.node);
+	grid.save(path);
 }
 
 };

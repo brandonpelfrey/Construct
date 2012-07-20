@@ -58,5 +58,19 @@ template<typename T>
 inline Field<T> lineIntegral(Field<T> field, VectorField start, VectorField flow, ScalarField distance, ScalarField step) 
 { return Field<T>(new LineIntegralField<T>(field.node, start.node, flow.node, distance.node, step.node)); }
 
+//! Divergence Operator
+struct DivergenceField : public ScalarFieldNode {
+	VFNodePtr field;
+	DivergenceField(VFNodePtr field) : field(field) { }
+	real eval(const Vec3& x) const {
+		Mat3 G = field->grad(x);
+		return G.trace();
+	}
+	Vec3 grad(const Vec3& x) const 
+	{	throw std::logic_error("Can not analytically create second derivatives..."); return Vec3(0,0,0); }
+};
+inline ScalarField div(VectorField field)
+{ return ScalarField(new DivergenceField(field.node)); }
+
 };
 #endif
