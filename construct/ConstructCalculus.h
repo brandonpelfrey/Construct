@@ -72,5 +72,23 @@ struct DivergenceField : public ScalarFieldNode {
 inline ScalarField div(VectorField field)
 { return ScalarField(new DivergenceField(field.node)); }
 
+//! Curl Operator
+struct CurlField : public VectorFieldNode {
+  VFNodePtr field;
+  CurlField(VFNodePtr field) : field(field) { }
+  Vec3 eval(const Vec3& x) const { 
+    Mat3 G = field->grad(x);
+    Vec3 r;
+    r[0] = G(2,1) - G(1,2);
+    r[1] = G(0,2) - G(2,0);
+    r[2] = G(1,0) - G(0,1);
+    return r;
+  }
+  Mat3 grad(const Vec3& x) const
+	{	throw std::logic_error("Can not analytically create second derivatives..."); return Mat3::Zero(); }
+};
+inline VectorField curl(VectorField field)
+{ return VectorField(new CurlField(field.node)); }
+
 };
 #endif

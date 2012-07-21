@@ -14,11 +14,11 @@ void render_ppm(const char *path, ScalarField field, Domain domain) {
 
 	fprintf(f,"P6\n%d %d\n255\n",W,H);
 	//unsigned char *pix = new unsigned char[W*H*3];
-	for(int y=0;y<H;++y) {
+	for(int y=H-1;y>=0;--y) {
 		for(int x=0;x<W;++x) {
 			Vec3 X;
 			X[0] = domain.bmin[0] + domain.extent[0] * (float)x / (float)(W-1);
-			X[1] = domain.bmin[2] + domain.extent[1] * (float)y / (float)(H-1);
+			X[1] = domain.bmin[1] + domain.extent[1] * (float)y / (float)(H-1);
 			X[2] = (domain.bmin[2] + domain.bmax[2]) * .5f;
 	
 			float sample = field.eval(X);
@@ -44,8 +44,17 @@ Field<T> sla(Field<T> f, VectorField u, ScalarField dt) {
 ScalarField sphere(Vec3 center, float radius)
 { return constant(radius) - length(identity() - constant(center)); }
 
+// Vorticity Confinement
+VectorField VorticityConfinement(VectorField velocity, float epsilon, Domain domain) {
+  auto C = writeToGrid(curl(velocity), constant(Vec3(0,0,0)), domain);
+  auto eta = grad(length(C));
+  auto N = eta / (constant(.00001f) + length(eta));
+  return constant(epsilon) * cross(N,C);
+}
+
+//
 int main(int argc, char **argv) {
-	const unsigned int R = 128; // Resolution
+	const unsigned int R = 64; // Resolution
   Domain domain(R, R, R, Vec3(-1,-1,-1), Vec3(1,1,1));
 
 	auto density = mask(sphere(Vec3(0,-.5,0), .4f));
@@ -53,20 +62,15 @@ int main(int argc, char **argv) {
 	auto dt = constant(.1f);
 
 	for(int iter=0; iter<100; ++iter) {
-		auto t1 = chrono::high_resolution_clock::now();
-	
 		//////////////////////////////////////////////////////////	
 		// Advect density using semi-lagrangian advection		
 		density = sla(density, velocity, dt);	
 		density = writeToGrid(density, constant(0.f), domain);
 
 		// Advect velocity similarly
-		velocity = sla(velocity, velocity, dt);
-		
-		// Apply bouyant force
-		velocity = velocity + dt * density * constant(Vec3(0,1,0));
-
-		// Project to divergence free (volume conserving)
+    VectorField force = VorticityConfinement(velocity, .1f, domain);
+    force = force + density * constant(Vec3(0,1,0));
+		velocity = sla(velocity, velocity, dt) + force * dt;
 		velocity = divFree(velocity, domain);
 		//////////////////////////////////////////////////////////	
 
@@ -75,17 +79,11 @@ int main(int argc, char **argv) {
 		char path[256];
 		//sprintf(path, "density.%04d.grid", iter);
 		//saveGriddedField(path, density, domain);
-
 		sprintf(path, "frame.%04d.ppm", iter);
 		render_ppm(path, density, domain);
 #endif
 
-		// Output some 
-		auto t2 = chrono::high_resolution_clock::now();
-		cout << 
-			"Finished time step " << iter+1 << " in " <<
-			chrono::duration_cast<chrono::milliseconds>(t2-t1).count() << 
-			" milliseconds." << endl; 
+		cout << "Finished time step " << iter+1 << endl;
 	}
 	return 0;
 }

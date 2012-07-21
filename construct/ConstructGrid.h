@@ -120,13 +120,18 @@ template<> Vec3 ConstructGrid<real>::grad(const Vec3& x) const
 	result[2] = (eval(x + Vec3(0,0,dx[2])) - eval(x - Vec3(0,0,dx[2]))) / (2 * dx[2]);
 	return result;
 }
+
 template<> Mat3 ConstructGrid<Vec3>::grad(const Vec3& x) const
 { 
 	const Vec3 &dx(domain.H);
+  Vec3 D;
 	Mat3 result;
-	result.row(0) = (eval(x + Vec3(dx[0],0,0)) - eval(x - Vec3(dx[0],0,0))) / (2 * dx[0]);
-	result.row(1) = (eval(x + Vec3(0,dx[1],0)) - eval(x - Vec3(0,dx[1],0))) / (2 * dx[1]);
-	result.row(2) = (eval(x + Vec3(0,0,dx[2])) - eval(x - Vec3(0,0,dx[2]))) / (2 * dx[2]);
+	D = (eval(x + Vec3(dx[0],0,0)) - eval(x - Vec3(dx[0],0,0))) / (2 * dx[0]);
+  result(0,0) = D[0]; result(0,1) = D[1]; result(0,2) = D[2];
+  D = (eval(x + Vec3(0,dx[1],0)) - eval(x - Vec3(0,dx[1],0))) / (2 * dx[1]);
+	result(1,0) = D[0]; result(1,1) = D[1]; result(1,2) = D[2];
+  D = (eval(x + Vec3(0,0,dx[2])) - eval(x - Vec3(0,0,dx[2]))) / (2 * dx[2]);
+	result(2,0) = D[0]; result(2,1) = D[1]; result(2,2) = D[2];
 	return result;
 }
 
