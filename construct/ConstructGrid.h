@@ -158,9 +158,9 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
     for(int i=1;i<domain.res[0]-1;++i)
     for(int j=1;j<domain.res[1]-1;++j)
     for(int k=1;k<domain.res[2]-1;++k) {
-      Vec3 V = get(i,j,k);
       float D = get(i+1,j,k)[0] + get(i,j+1,k)[1] + get(i,j,k+1)[2];
-      D -= V[0] + V[1] + V[2];
+			D -= get(i-1,j,k)[0] + get(i,j-1,k)[1] + get(i,j,k-1)[2];
+			D *= .5f;
       divergence.set(i,j,k, D /** domain.Hinverse[0]*/ ); // ASSUMED CUBIC CELLS!
     }
 
@@ -207,9 +207,9 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
     for(int j=1;j<domain.res[1]-1;++j)
     for(int k=1;k<domain.res[2]-1;++k) {
       Vec3 V = get(i,j,k);
-      V[0] -= (p.get(i,j,k) - p.get(i-1,j,k)) ;//* domain.Hinverse[0];
-      V[1] -= (p.get(i,j,k) - p.get(i,j-1,k)) ;//* domain.Hinverse[1];
-      V[2] -= (p.get(i,j,k) - p.get(i,j,k-1)) ;//* domain.Hinverse[2];
+      V[0] -= (p.get(i+1,j,k) - p.get(i-1,j,k)) *.5f;/// (2*domain.H[0]);//* domain.Hinverse[0];
+      V[1] -= (p.get(i,j+1,k) - p.get(i,j-1,k)) *.5f;/// (2*domain.H[1]);//* domain.Hinverse[1];
+      V[2] -= (p.get(i,j,k+1) - p.get(i,j,k-1)) * .5f;/// (2*domain.H[2]);//* domain.Hinverse[2];
       set(i,j,k,V);
     }
 }

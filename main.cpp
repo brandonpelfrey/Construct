@@ -16,14 +16,26 @@ void render_ppm(const char *path, ScalarField field, Domain domain) {
 	//unsigned char *pix = new unsigned char[W*H*3];
 	for(int y=H-1;y>=0;--y) {
 		for(int x=0;x<W;++x) {
-			Vec3 X;
-			X[0] = domain.bmin[0] + domain.extent[0] * (float)x / (float)(W-1);
-			X[1] = domain.bmin[1] + domain.extent[1] * (float)y / (float)(H-1);
-			X[2] = (domain.bmin[2] + domain.bmax[2]) * .5f;
+		
+			float C=0,T=1;
+			const float ds = domain.H[2];
+			for(float z=domain.bmin[2];z<=domain.bmax[2];z+=ds) {
+				Vec3 X;
+				X[0] = domain.bmin[0] + domain.extent[0] * (float)x / (float)(W-1);
+				X[1] = domain.bmin[1] + domain.extent[1] * (float)y / (float)(H-1);
+				X[2] = z;
+				float rho = field.eval(X);
+				if(rho <= 0) continue;
+				const float dT = expf(rho * -ds);
+				T *= dT;
+				C += (1.f-dT) * T * 1;
+			}
+
+			C = powf(C, 1.f / 1.7f);
 	
-			float sample = field.eval(X);
-			unsigned char C = sample / max_value * 255;
-			fprintf(f, "%c%c%c", C, C, C);
+			// Convert to the [0,255] range
+			unsigned char Cc = C * 255;
+			fprintf(f, "%c%c%c", Cc, Cc, Cc);
 		}
 	}
 
@@ -57,7 +69,7 @@ int main(int argc, char **argv) {
 	const unsigned int R = 64; // Resolution
   Domain domain(R, R, R, Vec3(-1,-1,-1), Vec3(1,1,1));
 
-	auto density = mask(sphere(Vec3(0,-.5,0), .4f));
+	auto density = mask(sphere(Vec3(0,-.5,0), .4f)) * 2.f;
 	auto velocity = constant(Vec3(0,0,0));
 	auto dt = constant(.1f);
 
