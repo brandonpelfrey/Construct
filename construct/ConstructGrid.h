@@ -35,6 +35,11 @@ struct ConstructGrid : public ConstructFieldNode<T> {
 		else
 			return data[ index(i,j,k) ];
 	}
+	
+  //! Guaranteed Safe Get (For when there is no possibility of accessing outside)
+  inline T gets(int i, int j, int k) const {
+		return data[ index(i,j,k) ];
+	}
 
 	inline void set(int i, int j, int k, const T& value) {
 		data[index(i,j,k)] = value;
@@ -135,6 +140,7 @@ template<> Mat3 ConstructGrid<Vec3>::grad(const Vec3& x) const
 	return result;
 }
 
+#include <iostream>
 // Divergence-Free Projection
 // Use Helmholtz-Hodge decomposition to compute div-free component of a vector field
 template<> void ConstructGrid<Vec3>::divFree(int iterations) {
@@ -143,14 +149,29 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
 	ConstructGrid<real> divergence(domain, constant(static_cast<real>(0)).node);
 	p.bakeData(ScalarField(static_cast<real>(0)).node);
 
+  ConstructGrid<real> r(domain, constant(static_cast<real>(0)).node);
+  ConstructGrid<real> d(domain, constant(static_cast<real>(0)).node);
+  ConstructGrid<real> q(domain, constant(static_cast<real>(0)).node);
+  ConstructGrid<real> skip(domain, constant(static_cast<real>(1)).node);
+
+  // Outside "skip" area
+  for(int i=0;i<domain.res[0];++i)
+  for(int j=0;j<domain.res[1];++j)
+  for(int k=0;k<domain.res[2];++k) {
+    if(i==0 || i==domain.res[0]-1 || j==0 || j==domain.res[1]-1 || k==0 || k==domain.res[2]-1) 
+      skip.set(i,j,k,1);
+    else
+      skip.set(i,j,k,0);
+  }
+
 	// Set no flux for velocity
 #pragma omp parallel for
     for(int i=0;i<domain.res[0];++i)
     for(int j=0;j<domain.res[1];++j)
     for(int k=0;k<domain.res[2];++k) {
-      if(i==0 || i==domain.res[0]-1) set(i,j,k, get(i,j,k).cwiseProduct(Vec3(0,1,1)));
-      if(j==0 || j==domain.res[1]-1) set(i,j,k, get(i,j,k).cwiseProduct(Vec3(1,0,1)));
-      if(k==0 || k==domain.res[2]-1) set(i,j,k, get(i,j,k).cwiseProduct(Vec3(1,1,0)));
+      if(i==0 || i==domain.res[0]-1) set(i,j,k, gets(i,j,k).cwiseProduct(Vec3(0,1,1)));
+      if(j==0 || j==domain.res[1]-1) set(i,j,k, gets(i,j,k).cwiseProduct(Vec3(1,0,1)));
+      if(k==0 || k==domain.res[2]-1) set(i,j,k, gets(i,j,k).cwiseProduct(Vec3(1,1,0)));
     }
 
 	// Compute divergence of non-boundary cells
@@ -158,16 +179,126 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
     for(int i=1;i<domain.res[0]-1;++i)
     for(int j=1;j<domain.res[1]-1;++j)
     for(int k=1;k<domain.res[2]-1;++k) {
-      float D = get(i+1,j,k)[0] + get(i,j+1,k)[1] + get(i,j,k+1)[2];
-			D -= get(i-1,j,k)[0] + get(i,j-1,k)[1] + get(i,j,k-1)[2];
+      float D = gets(i+1,j,k)[0] + gets(i,j+1,k)[1] + gets(i,j,k+1)[2];
+			D -= gets(i-1,j,k)[0] + gets(i,j-1,k)[1] + gets(i,j,k-1)[2];
 			D *= .5f;
-      divergence.set(i,j,k, D * domain.Hinverse[0] ); // ASSUMED CUBIC CELLS!
+      divergence.set(i,j,k, D ); // ASSUMED CUBIC CELLS!
     }
 
+    // CG
+    // r = b - Ax
+//#pragma omp parallel for
+    for(int i=1;i<domain.res[0]-1;++i)
+    for(int j=1;j<domain.res[1]-1;++j)
+    for(int k=1;k<domain.res[2]-1;++k) {
+      real center = 0., R = 0.;
+      if(skip.get(i-1,j,k)!=1) { center += 1; R += p.gets(i-1,j,k); }
+      if(skip.get(i,j-1,k)!=1) { center += 1; R += p.gets(i,j-1,k); }
+      if(skip.get(i,j,k-1)!=1) { center += 1; R += p.gets(i,j,k-1); }
+      if(skip.get(i+1,j,k)!=1) { center += 1; R += p.gets(i+1,j,k); }
+      if(skip.get(i,j+1,k)!=1) { center += 1; R += p.gets(i,j+1,k); }
+      if(skip.get(i,j,k+1)!=1) { center += 1; R += p.gets(i,j,k+1); }
+      
+      R = divergence.gets(i,j,k) - (center * p.gets(i,j,k) - R);
+      r.set(i,j,k, skip.get(i,j,k)==1 ? 0. : R);
+    }
+
+    // d = r
+//#pragma omp parallel for
+    for(int i=1;i<domain.res[0]-1;++i)
+    for(int j=1;j<domain.res[1]-1;++j)
+    for(int k=1;k<domain.res[2]-1;++k) {
+      d.set(i,j,k, r.gets(i,j,k));
+    }
+
+    // deltaNew = transpose(r) * r
+    real deltaNew = 0.;
+//#pragma omp parallel for
+    for(int i=1;i<domain.res[0]-1;++i)
+    for(int j=1;j<domain.res[1]-1;++j)
+    for(int k=1;k<domain.res[2]-1;++k) {
+      deltaNew += r.gets(i,j,k) * r.gets(i,j,k);
+    }
+
+    // delta = deltaNew
+    real delta0 = deltaNew;
+    const real eps = 1.e-5;
+    real maxR = 2. * eps;
+    int iter=0;
+    while((iter<iterations) && (maxR > eps)) {
+      // q = A d
+//#pragma omp parallel for
+      for(int i=1;i<domain.res[0]-1;++i)
+      for(int j=1;j<domain.res[1]-1;++j)
+      for(int k=1;k<domain.res[2]-1;++k) {
+        real center = 0., R = 0.;
+        if(skip.get(i-1,j,k)!=1) { center += 1; R += d.gets(i-1,j,k); }
+        if(skip.get(i,j-1,k)!=1) { center += 1; R += d.gets(i,j-1,k); }
+        if(skip.get(i,j,k-1)!=1) { center += 1; R += d.gets(i,j,k-1); }
+        if(skip.get(i+1,j,k)!=1) { center += 1; R += d.gets(i+1,j,k); }
+        if(skip.get(i,j+1,k)!=1) { center += 1; R += d.gets(i,j+1,k); }
+        if(skip.get(i,j,k+1)!=1) { center += 1; R += d.gets(i,j,k+1); }
+        
+        R = (center * d.gets(i,j,k) - R);
+        q.set(i,j,k, skip.get(i,j,k)==1 ? 0. : R);
+      }
+
+      // alpha = deltaNew / (d'q)
+      real alpha = 0.f;
+      for(int i=1;i<domain.res[0]-1;++i)
+      for(int j=1;j<domain.res[1]-1;++j)
+      for(int k=1;k<domain.res[2]-1;++k)
+      {  alpha += d.gets(i,j,k) * q.gets(i,j,k); }
+
+      if(fabs(alpha) > .0) 
+        alpha = deltaNew / alpha;
+
+      // x = x + alpha * d
+//#pragma omp parallel for
+      for(int i=1;i<domain.res[0]-1;++i)
+      for(int j=1;j<domain.res[1]-1;++j)
+      for(int k=1;k<domain.res[2]-1;++k)
+      { p.set(i,j,k, p.gets(i,j,k) + alpha * d.gets(i,j,k)); }
+
+      // r = r - alpha * q
+      maxR = 0.;
+      for(int i=1;i<domain.res[0]-1;++i)
+      for(int j=1;j<domain.res[1]-1;++j)
+      for(int k=1;k<domain.res[2]-1;++k) { 
+        r.set(i,j,k, r.gets(i,j,k) - alpha * q.gets(i,j,k)); 
+        maxR = r.gets(i,j,k) > maxR ? r.gets(i,j,k) : maxR;
+      }
+
+      real deltaOld = deltaNew;
+
+      // deltaNew = r'r
+      deltaNew = 0.;
+      for(int i=1;i<domain.res[0]-1;++i)
+      for(int j=1;j<domain.res[1]-1;++j)
+      for(int k=1;k<domain.res[2]-1;++k)
+      { deltaNew += r.gets(i,j,k) * r.gets(i,j,k); }
+
+      real beta = deltaNew / deltaOld;
+
+      // d = r + beta * d
+//#pragma omp parallel for
+      for(int i=1;i<domain.res[0]-1;++i)
+      for(int j=1;j<domain.res[1]-1;++j)
+      for(int k=1;k<domain.res[2]-1;++k) { 
+        d.set(i,j,k, r.get(i,j,k) + beta * d.gets(i,j,k));
+      }
+      // Next iteration...
+      ++iter;
+      {
+        using namespace std;
+      //  cout << "Iteration " << iter << " -- Error: " << maxR << endl;
+      }
+    }
+/*
 	// Jacobi Iterations
 	int iter;
 	for(iter=0; iter<iterations; ++iter) {
-//#pragma omp parallel for
+#pragma omp parallel for
       for(int i=0;i<domain.res[0];++i)
       for(int j=0;j<domain.res[1];++j)
       for(int k=0;k<domain.res[2];++k) {
@@ -178,9 +309,8 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
         if(j==domain.res[1]-1) { pnew.set(i,j,k, p.get(i,domain.res[1]-2,k)); continue; }
         if(k==domain.res[2]-1) { pnew.set(i,j,k, p.get(i,j,domain.res[2]-2)); continue; }
 
-        const real h2 = domain.H[0]*domain.H[0];
 
-        real P = -h2 * divergence.get(i,j,k);
+        real P = -divergence.get(i,j,k);
         P += p.get(i+1,j,k);
         P += p.get(i-1,j,k);
         P += p.get(i,j+1,k);
@@ -189,10 +319,9 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
         P += p.get(i,j,k-1);
 
         real newp = P / 6;
-        //pnew.set(i,j,k, newp);
-				p.set(i,j,k,newp);
+        pnew.set(i,j,k, newp);
       }
-/*
+
 	// Assign computed values over old ones
 #pragma omp parallel for
       for(int i=0;i<domain.res[0];++i)
@@ -200,8 +329,19 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
       for(int k=0;k<domain.res[2];++k) {
         p.set(i,j,k, pnew.get(i,j,k));
       }
-*/
+
 	}
+*/
+    for(int i=0;i<domain.res[0];++i)
+    for(int j=0;j<domain.res[1];++j)
+    for(int k=0;k<domain.res[2];++k) {
+      if(i==0) p.set(i,j,k, p.gets(1,j,k));
+      if(j==0) p.set(i,j,k, p.gets(i,1,k));
+      if(k==0) p.set(i,j,k, p.gets(i,j,1));
+      if(i==domain.res[0]-1) p.set(i,j,k, p.gets(domain.res[0]-2,j,k));
+      if(j==domain.res[1]-1) p.set(i,j,k, p.gets(i,domain.res[1]-2,k));
+      if(k==domain.res[2]-1) p.set(i,j,k, p.gets(i,j,domain.res[2]-2));
+    }
 
 	// Subtract gradient of "pressure"
 #pragma omp parallel for
@@ -209,9 +349,9 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
     for(int j=1;j<domain.res[1]-1;++j)
     for(int k=1;k<domain.res[2]-1;++k) {
       Vec3 V = get(i,j,k);
-      V[0] -= (p.get(i+1,j,k) - p.get(i-1,j,k)) / (2*domain.H[0]);//* domain.Hinverse[0];
-      V[1] -= (p.get(i,j+1,k) - p.get(i,j-1,k)) / (2*domain.H[1]);//* domain.Hinverse[1];
-      V[2] -= (p.get(i,j,k+1) - p.get(i,j,k-1)) / (2*domain.H[2]);//* domain.Hinverse[2];
+      V[0] -= (p.gets(i+1,j,k) - p.gets(i-1,j,k)) * .5f; 
+      V[1] -= (p.gets(i,j+1,k) - p.gets(i,j-1,k)) * .5f;
+      V[2] -= (p.gets(i,j,k+1) - p.gets(i,j,k-1)) * .5f;
       set(i,j,k,V);
     }
 }

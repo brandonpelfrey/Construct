@@ -8,8 +8,8 @@ using namespace std;
 // Output a _very_ crude PPM down the middle slice of the volume
 void render_ppm(const char *path, ScalarField field, Domain domain) {
 	FILE *f = fopen(path, "wb");
-	int W = domain.res[0] * 2;
-	int H = domain.res[2] * 2;
+	int W = 512;//domain.res[0] * 2;
+	int H = 512;//domain.res[2] * 2;
 
 	fprintf(f,"P6\n%d %d\n255\n",W,H);
 	//unsigned char *pix = new unsigned char[W*H*3];
@@ -57,12 +57,8 @@ ScalarField sphere(Vec3 center, float radius)
 VectorField VorticityConfinement(VectorField velocity, float epsilon, Domain domain) {
   auto C = writeToGrid(curl(velocity), constant(Vec3(0,0,0)), domain);
   auto eta = grad(length(C));
-  auto N = eta / (constant(.00001f) + length(eta));
-  return constant(epsilon) * cross(N,C);
-}
-
-VectorField MPA(VectorField u, Domain domain, ScalarField dt) {
-	return sla(u, (u+sla(u,u,dt*.5f))*.5f, dt);
+  auto N = eta / (constant(.000001f) + length(eta));
+  return constant(domain.H[0] * epsilon) * cross(N,C);
 }
 
 //
@@ -70,22 +66,22 @@ int main(int argc, char **argv) {
 	const unsigned int R = 64; // Resolution
   Domain domain(R, R, R, Vec3(-1,-1,-1), Vec3(1,1,1));
 
-	auto density = mask(sphere(Vec3(0,-.5,0), .4f)) * 2.f;
+  auto source =  mask(sphere(Vec3(0,-1,0), .2f)) * 2.f;
+  auto density = constant(0.f);
 	auto velocity = constant(Vec3(0,0,0));
 	auto dt = constant(.1f);
 
 	for(int iter=0; iter<100; ++iter) {
 		//////////////////////////////////////////////////////////	
 		// Advect density using semi-lagrangian advection		
-		density = sla(density, velocity, dt);	
+		density = sla(density, velocity, dt) + dt * source;	
 		density = writeToGrid(density, constant(0.f), domain);
 
 		// Advect velocity similarly
-    VectorField force = VorticityConfinement(velocity, domain.H[0]*1.4f, domain);
+    VectorField force = VorticityConfinement(velocity, 2.f, domain);
     force = force + density * constant(Vec3(0,1,0));
-		//velocity = sla(velocity, velocity, dt) + force * dt;
-		velocity = MPA(velocity, domain, dt) + force * dt;
-		velocity = divFree(velocity, domain, R);
+		velocity = sla(velocity, velocity, dt) + force * dt;
+		velocity = divFree(velocity, domain, 64);
 		//////////////////////////////////////////////////////////	
 
 		// Output results
