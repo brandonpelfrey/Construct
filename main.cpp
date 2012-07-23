@@ -8,7 +8,6 @@ using namespace std;
 // Output a _very_ crude PPM down the middle slice of the volume
 void render_ppm(const char *path, ScalarField field, Domain domain) {
 	FILE *f = fopen(path, "wb");
-	float max_value = 1.f;
 	int W = domain.res[0] * 2;
 	int H = domain.res[2] * 2;
 
@@ -18,7 +17,7 @@ void render_ppm(const char *path, ScalarField field, Domain domain) {
 		for(int x=0;x<W;++x) {
 		
 			float C=0,T=1;
-			const float ds = domain.H[2];
+			const float ds = domain.H[2] * .5f;
 			for(float z=domain.bmin[2];z<=domain.bmax[2];z+=ds) {
 				Vec3 X;
 				X[0] = domain.bmin[0] + domain.extent[0] * (float)x / (float)(W-1);
@@ -31,10 +30,8 @@ void render_ppm(const char *path, ScalarField field, Domain domain) {
 				C += (1.f-dT) * T * 1;
 			}
 
-			C = powf(C, 1.f / 1.7f);
-	
-			// Convert to the [0,255] range
-			unsigned char Cc = C * 255;
+			// Gamma adjust + convert to the [0,255] range
+			unsigned char Cc = powf(C, 1.f/1.7f) * 255;
 			fprintf(f, "%c%c%c", Cc, Cc, Cc);
 		}
 	}
@@ -64,6 +61,10 @@ VectorField VorticityConfinement(VectorField velocity, float epsilon, Domain dom
   return constant(epsilon) * cross(N,C);
 }
 
+VectorField MPA(VectorField u, Domain domain, ScalarField dt) {
+	return sla(u, (u+sla(u,u,dt*.5f))*.5f, dt);
+}
+
 //
 int main(int argc, char **argv) {
 	const unsigned int R = 64; // Resolution
@@ -80,10 +81,11 @@ int main(int argc, char **argv) {
 		density = writeToGrid(density, constant(0.f), domain);
 
 		// Advect velocity similarly
-    VectorField force = VorticityConfinement(velocity, .1f, domain);
+    VectorField force = VorticityConfinement(velocity, domain.H[0]*1.4f, domain);
     force = force + density * constant(Vec3(0,1,0));
-		velocity = sla(velocity, velocity, dt) + force * dt;
-		velocity = divFree(velocity, domain);
+		//velocity = sla(velocity, velocity, dt) + force * dt;
+		velocity = MPA(velocity, domain, dt) + force * dt;
+		velocity = divFree(velocity, domain, R);
 		//////////////////////////////////////////////////////////	
 
 		// Output results

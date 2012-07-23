@@ -161,13 +161,13 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
       float D = get(i+1,j,k)[0] + get(i,j+1,k)[1] + get(i,j,k+1)[2];
 			D -= get(i-1,j,k)[0] + get(i,j-1,k)[1] + get(i,j,k-1)[2];
 			D *= .5f;
-      divergence.set(i,j,k, D /** domain.Hinverse[0]*/ ); // ASSUMED CUBIC CELLS!
+      divergence.set(i,j,k, D * domain.Hinverse[0] ); // ASSUMED CUBIC CELLS!
     }
 
 	// Jacobi Iterations
 	int iter;
 	for(iter=0; iter<iterations; ++iter) {
-#pragma omp parallel for
+//#pragma omp parallel for
       for(int i=0;i<domain.res[0];++i)
       for(int j=0;j<domain.res[1];++j)
       for(int k=0;k<domain.res[2];++k) {
@@ -178,7 +178,7 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
         if(j==domain.res[1]-1) { pnew.set(i,j,k, p.get(i,domain.res[1]-2,k)); continue; }
         if(k==domain.res[2]-1) { pnew.set(i,j,k, p.get(i,j,domain.res[2]-2)); continue; }
 
-        const real h2 = 1;//domain.H[0]*domain.H[0];
+        const real h2 = domain.H[0]*domain.H[0];
 
         real P = -h2 * divergence.get(i,j,k);
         P += p.get(i+1,j,k);
@@ -189,9 +189,10 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
         P += p.get(i,j,k-1);
 
         real newp = P / 6;
-        pnew.set(i,j,k, newp);
+        //pnew.set(i,j,k, newp);
+				p.set(i,j,k,newp);
       }
-
+/*
 	// Assign computed values over old ones
 #pragma omp parallel for
       for(int i=0;i<domain.res[0];++i)
@@ -199,6 +200,7 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
       for(int k=0;k<domain.res[2];++k) {
         p.set(i,j,k, pnew.get(i,j,k));
       }
+*/
 	}
 
 	// Subtract gradient of "pressure"
@@ -207,9 +209,9 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
     for(int j=1;j<domain.res[1]-1;++j)
     for(int k=1;k<domain.res[2]-1;++k) {
       Vec3 V = get(i,j,k);
-      V[0] -= (p.get(i+1,j,k) - p.get(i-1,j,k)) *.5f;/// (2*domain.H[0]);//* domain.Hinverse[0];
-      V[1] -= (p.get(i,j+1,k) - p.get(i,j-1,k)) *.5f;/// (2*domain.H[1]);//* domain.Hinverse[1];
-      V[2] -= (p.get(i,j,k+1) - p.get(i,j,k-1)) * .5f;/// (2*domain.H[2]);//* domain.Hinverse[2];
+      V[0] -= (p.get(i+1,j,k) - p.get(i-1,j,k)) / (2*domain.H[0]);//* domain.Hinverse[0];
+      V[1] -= (p.get(i,j+1,k) - p.get(i,j-1,k)) / (2*domain.H[1]);//* domain.Hinverse[1];
+      V[2] -= (p.get(i,j,k+1) - p.get(i,j,k-1)) / (2*domain.H[2]);//* domain.Hinverse[2];
       set(i,j,k,V);
     }
 }

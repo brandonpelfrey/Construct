@@ -30,6 +30,12 @@ struct ConstructFieldNode {
   { return FieldInfo<typename FieldInfo<T>::GradType>::Zero(); } 
 };
 
+template<> Mat3 ConstructFieldNode<Mat3>::grad(const Vec3& x) const {
+	Mat3 M;
+	M(0,0) = 999999.f;
+	return M;
+}
+
 typedef ConstructFieldNode<float> ScalarFieldNode;
 typedef ConstructFieldNode<Vec3> VectorFieldNode;
 typedef ConstructFieldNode<Mat3> MatrixFieldNode;

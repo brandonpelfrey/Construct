@@ -86,5 +86,39 @@ struct OuterProductField : public MatrixFieldNode {
 inline MatrixField outer_product(VectorField f, VectorField g)
 { return MatrixField(new OuterProductField(f.node, g.node)); }
 
+// Solve 3x3 Linear Systems
+struct LinearSolveField : public VectorFieldNode {
+	MFNodePtr matrix;
+	VFNodePtr vector;
+	LinearSolveField(MFNodePtr matrix, VFNodePtr vector)
+	: matrix(matrix), vector(vector) { }
+	Vec3 eval(const Vec3& x) const {
+		Mat3 m = matrix->eval(x);
+		Vec3 v = vector->eval(x);
+		Eigen::FullPivLU<Mat3> lu(m);
+		if(lu.rank() < 3) return Vec3(0,0,0);
+		return lu.solve(v);
+	}
+	Mat3 grad(const Vec3& x) const { 
+		throw std::logic_error("Can not take gradients of matrix fields in the Construct."); 
+		return Mat3::Zero();
+	}
+};
+inline VectorField solve(MatrixField matrix, VectorField vector)
+{ return VectorField(new LinearSolveField(matrix.node, vector.node)); }
+
+// Matrix transpose
+struct TransposeField : public MatrixFieldNode {
+	MFNodePtr m;
+	TransposeField(MFNodePtr m) : m(m) { }
+	Mat3 eval(const Vec3& x) const { return m->eval(x).transpose(); }
+	Mat3 grad(const Vec3& x) const { 
+		throw std::logic_error("Can not take gradients of matrix fields in the Construct."); 
+		return Mat3::Zero();
+	}
+};
+inline MatrixField transpose(MatrixField m)
+{ return MatrixField(new TransposeField(m.node)); }
+
 };
 #endif

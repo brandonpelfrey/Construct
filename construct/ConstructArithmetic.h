@@ -11,7 +11,7 @@ struct AdditionField : public ConstructFieldNode<T> {
  AdditionField(Ptr A, Ptr B) : A(A), B(B) { }
  T eval(const Vec3& x) const 
  { return A->eval(x) + B->eval(x); }
- typename FieldInfo<T>::GradType grad(const Vec3& x)
+ typename FieldInfo<T>::GradType grad(const Vec3& x) const
  { return A->grad(x) + B->grad(x); }
 };
 template<typename T>
@@ -26,7 +26,7 @@ struct SubtractionField : public ConstructFieldNode<T> {
  SubtractionField(Ptr A, Ptr B) : A(A), B(B) { }
  T eval(const Vec3& x) const 
  { return A->eval(x) - B->eval(x); }
- typename FieldInfo<T>::GradType grad(const Vec3& x)
+ typename FieldInfo<T>::GradType grad(const Vec3& x) const
  { return A->grad(x) - B->grad(x); }
 };
 template<typename T>
