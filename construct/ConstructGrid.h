@@ -83,7 +83,7 @@ struct ConstructGrid : public ConstructFieldNode<T> {
 	}
 
 	//! Divergence-Free projection. Only specialized for vector fields 
-	void divFree(int iterations) { }
+	void divFree(ScalarField boundary, int iterations) { }
  
 	//! Load a gridded field from disk 
 	void load(const char* path) { 
@@ -143,9 +143,8 @@ template<> Mat3 ConstructGrid<Vec3>::grad(const Vec3& x) const
 #include <iostream>
 // Divergence-Free Projection
 // Use Helmholtz-Hodge decomposition to compute div-free component of a vector field
-template<> void ConstructGrid<Vec3>::divFree(int iterations) {
+template<> void ConstructGrid<Vec3>::divFree(ScalarField boundary, int iterations) {
 	ConstructGrid<real> p(domain, constant(static_cast<real>(0)).node);
-	ConstructGrid<real> pnew(domain, constant(static_cast<real>(0)).node);
 	ConstructGrid<real> divergence(domain, constant(static_cast<real>(0)).node);
 	p.bakeData(ScalarField(static_cast<real>(0)).node);
 
@@ -162,6 +161,10 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
       skip.set(i,j,k,1);
     else
       skip.set(i,j,k,0);
+
+    // Add in extra boundaries
+    if(boundary.eval(domain.position(i,j,k)) > 0)
+      skip.set(i,j,k,1);
   }
 
 	// Set no flux for velocity
@@ -199,12 +202,12 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
       if(skip.get(i,j+1,k)!=1) { center += 1; R += p.gets(i,j+1,k); }
       if(skip.get(i,j,k+1)!=1) { center += 1; R += p.gets(i,j,k+1); }
       
-      R = divergence.gets(i,j,k) - (center * p.gets(i,j,k) - R);
+      R = -divergence.gets(i,j,k) - (center * p.gets(i,j,k) - R);
       r.set(i,j,k, skip.get(i,j,k)==1 ? 0. : R);
     }
 
     // d = r
-//#pragma omp parallel for
+#pragma omp parallel for
     for(int i=1;i<domain.res[0]-1;++i)
     for(int j=1;j<domain.res[1]-1;++j)
     for(int k=1;k<domain.res[2]-1;++k) {
@@ -213,7 +216,7 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
 
     // deltaNew = transpose(r) * r
     real deltaNew = 0.;
-//#pragma omp parallel for
+#pragma omp parallel for
     for(int i=1;i<domain.res[0]-1;++i)
     for(int j=1;j<domain.res[1]-1;++j)
     for(int k=1;k<domain.res[2]-1;++k) {
@@ -222,12 +225,12 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
 
     // delta = deltaNew
     real delta0 = deltaNew;
-    const real eps = 1.e-5;
+    const real eps = 1.e-4;
     real maxR = 2. * eps;
     int iter=0;
     while((iter<iterations) && (maxR > eps)) {
       // q = A d
-//#pragma omp parallel for
+#pragma omp parallel for
       for(int i=1;i<domain.res[0]-1;++i)
       for(int j=1;j<domain.res[1]-1;++j)
       for(int k=1;k<domain.res[2]-1;++k) {
@@ -254,7 +257,7 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
         alpha = deltaNew / alpha;
 
       // x = x + alpha * d
-//#pragma omp parallel for
+#pragma omp parallel for
       for(int i=1;i<domain.res[0]-1;++i)
       for(int j=1;j<domain.res[1]-1;++j)
       for(int k=1;k<domain.res[2]-1;++k)
@@ -262,12 +265,15 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
 
       // r = r - alpha * q
       maxR = 0.;
+      
       for(int i=1;i<domain.res[0]-1;++i)
       for(int j=1;j<domain.res[1]-1;++j)
       for(int k=1;k<domain.res[2]-1;++k) { 
         r.set(i,j,k, r.gets(i,j,k) - alpha * q.gets(i,j,k)); 
-        maxR = r.gets(i,j,k) > maxR ? r.gets(i,j,k) : maxR;
+        //maxR = r.gets(i,j,k) > maxR ? r.gets(i,j,k) : maxR;
+        maxR += r.gets(i,j,k) * r.gets(i,j,k);
       }
+      maxR = std::sqrt( maxR/(domain.res[0]*domain.res[1]*domain.res[2]));
 
       real deltaOld = deltaNew;
 
@@ -281,7 +287,7 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
       real beta = deltaNew / deltaOld;
 
       // d = r + beta * d
-//#pragma omp parallel for
+#pragma omp parallel for
       for(int i=1;i<domain.res[0]-1;++i)
       for(int j=1;j<domain.res[1]-1;++j)
       for(int k=1;k<domain.res[2]-1;++k) { 
@@ -291,47 +297,11 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
       ++iter;
       {
         using namespace std;
-      //  cout << "Iteration " << iter << " -- Error: " << maxR << endl;
+        cout << "Iteration " << iter << " -- Error: " << maxR << endl;
       }
     }
-/*
-	// Jacobi Iterations
-	int iter;
-	for(iter=0; iter<iterations; ++iter) {
+
 #pragma omp parallel for
-      for(int i=0;i<domain.res[0];++i)
-      for(int j=0;j<domain.res[1];++j)
-      for(int k=0;k<domain.res[2];++k) {
-        if(i==0) { pnew.set(i,j,k, p.get(i+1,j,k)); continue; }
-        if(j==0) { pnew.set(i,j,k, p.get(i,j+1,k)); continue; }
-        if(k==0) { pnew.set(i,j,k, p.get(i,j,k+1)); continue; }
-        if(i==domain.res[0]-1) { pnew.set(i,j,k, p.get(domain.res[0]-2,j,k)); continue; }
-        if(j==domain.res[1]-1) { pnew.set(i,j,k, p.get(i,domain.res[1]-2,k)); continue; }
-        if(k==domain.res[2]-1) { pnew.set(i,j,k, p.get(i,j,domain.res[2]-2)); continue; }
-
-
-        real P = -divergence.get(i,j,k);
-        P += p.get(i+1,j,k);
-        P += p.get(i-1,j,k);
-        P += p.get(i,j+1,k);
-        P += p.get(i,j-1,k);
-        P += p.get(i,j,k+1);
-        P += p.get(i,j,k-1);
-
-        real newp = P / 6;
-        pnew.set(i,j,k, newp);
-      }
-
-	// Assign computed values over old ones
-#pragma omp parallel for
-      for(int i=0;i<domain.res[0];++i)
-      for(int j=0;j<domain.res[1];++j)
-      for(int k=0;k<domain.res[2];++k) {
-        p.set(i,j,k, pnew.get(i,j,k));
-      }
-
-	}
-*/
     for(int i=0;i<domain.res[0];++i)
     for(int j=0;j<domain.res[1];++j)
     for(int k=0;k<domain.res[2];++k) {
@@ -356,13 +326,13 @@ template<> void ConstructGrid<Vec3>::divFree(int iterations) {
     }
 }
 
-inline VectorField divFree(VectorField field, const Domain& domain, int iterations=30) {
+inline VectorField divFree(VectorField field, ScalarField boundary, const Domain& domain, int iterations=30) {
 	// TODO: build in isGridded() check and create shortcut for fields that are already grids
 	// so we don't waste time writing them to a grid a second time
 
 	ConstructGrid<Vec3> *grid = new ConstructGrid<Vec3>(domain, constant(Vec3(0,0,0)).node);
 	grid->bakeData(field.node);
-	grid->divFree(iterations);
+	grid->divFree(boundary, iterations);
 	return VectorField(grid);
 }
 

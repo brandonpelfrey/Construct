@@ -36,7 +36,7 @@ template<> Mat3 ConstructFieldNode<Mat3>::grad(const Vec3& x) const {
 	return M;
 }
 
-typedef ConstructFieldNode<float> ScalarFieldNode;
+typedef ConstructFieldNode<real> ScalarFieldNode;
 typedef ConstructFieldNode<Vec3> VectorFieldNode;
 typedef ConstructFieldNode<Mat3> MatrixFieldNode;
 

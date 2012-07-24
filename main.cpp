@@ -61,6 +61,12 @@ VectorField VorticityConfinement(VectorField velocity, float epsilon, Domain dom
   return constant(domain.H[0] * epsilon) * cross(N,C);
 }
 
+VectorField boundary_neumann(VectorField u, ScalarField boundary) {
+  VectorField N = grad(boundary);
+  N = N / (constant(.00001f) + length(N));
+  return u - mask(boundary) * dot(u,N) * N;
+}
+
 //
 int main(int argc, char **argv) {
 	const unsigned int R = 64; // Resolution
@@ -70,6 +76,7 @@ int main(int argc, char **argv) {
   auto density = constant(0.f);
 	auto velocity = constant(Vec3(0,0,0));
 	auto dt = constant(.1f);
+  auto boundary = mask(sphere(Vec3(0,0,0), .4));
 
 	for(int iter=0; iter<100; ++iter) {
 		//////////////////////////////////////////////////////////	
@@ -81,7 +88,8 @@ int main(int argc, char **argv) {
     VectorField force = VorticityConfinement(velocity, 2.f, domain);
     force = force + density * constant(Vec3(0,1,0));
 		velocity = sla(velocity, velocity, dt) + force * dt;
-		velocity = divFree(velocity, domain, 64);
+    velocity = boundary_neumann(velocity, boundary);
+		velocity = divFree(velocity, boundary, domain, 100);
 		//////////////////////////////////////////////////////////	
 
 		// Output results
