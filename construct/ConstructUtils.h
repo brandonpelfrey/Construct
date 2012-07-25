@@ -20,5 +20,22 @@ struct MaskField : public ScalarFieldNode {
 inline ScalarField mask(ScalarField field)
 { return ScalarField(new MaskField(field.node)); }
 
+// Absolute value
+template<typename T>
+struct AbsoluteValueField : public ConstructFieldNode<T> {
+	typedef typename ConstructFieldNode<T>::ptr Ptr;
+	Ptr field;
+	AbsoluteValueField(Ptr field) : field(field) { }
+	T eval(const Vec3& x) const { return field->eval(x).cwiseAbs(); }
+	typename FieldInfo<T>::GradType grad(const Vec3& x) const
+	{ return FieldInfo<typename FieldInfo<T>::GradType>::Zero(); }
+	// TODO: Implement grad(abs)
+};
+template<> real AbsoluteValueField<real>::eval(const Vec3& x) 
+const { return abs(field->eval(x)); }
+
+template<typename T> inline Field<T> abs(Field<T> field)
+{ return Field<T>(new AbsoluteValueField<T>(field.node)); }
+
 };
 #endif

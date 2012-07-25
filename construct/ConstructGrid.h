@@ -47,9 +47,9 @@ struct ConstructGrid : public ConstructFieldNode<T> {
 
 	void bakeData(typename ConstructFieldNode<T>::ptr source) {
 		#pragma omp parallel for
-		for(int i=0;i<domain.res[0];++i)
 		for(int j=0;j<domain.res[1];++j)
-		for(int k=0;k<domain.res[2];++k) {
+		for(int k=0;k<domain.res[2];++k) 
+		for(int i=0;i<domain.res[0];++i) {
 			Vec3 x = domain.position(i,j,k);
 			data[index(i,j,k)] = source->eval(x);
 		}
@@ -154,6 +154,7 @@ template<> void ConstructGrid<Vec3>::divFree(ScalarField boundary, int iteration
   ConstructGrid<real> skip(domain, constant(static_cast<real>(1)).node);
 
   // Outside "skip" area
+#pragma omp parallel for
   for(int i=0;i<domain.res[0];++i)
   for(int j=0;j<domain.res[1];++j)
   for(int k=0;k<domain.res[2];++k) {
@@ -169,9 +170,9 @@ template<> void ConstructGrid<Vec3>::divFree(ScalarField boundary, int iteration
 
 	// Set no flux for velocity
 #pragma omp parallel for
-    for(int i=0;i<domain.res[0];++i)
+    for(int k=0;k<domain.res[2];++k) 
     for(int j=0;j<domain.res[1];++j)
-    for(int k=0;k<domain.res[2];++k) {
+    for(int i=0;i<domain.res[0];++i) {
       if(i==0 || i==domain.res[0]-1) set(i,j,k, gets(i,j,k).cwiseProduct(Vec3(0,1,1)));
       if(j==0 || j==domain.res[1]-1) set(i,j,k, gets(i,j,k).cwiseProduct(Vec3(1,0,1)));
       if(k==0 || k==domain.res[2]-1) set(i,j,k, gets(i,j,k).cwiseProduct(Vec3(1,1,0)));
@@ -179,10 +180,10 @@ template<> void ConstructGrid<Vec3>::divFree(ScalarField boundary, int iteration
 
 	// Compute divergence of non-boundary cells
 #pragma omp parallel for
-    for(int i=1;i<domain.res[0]-1;++i)
+    for(int k=1;k<domain.res[2]-1;++k) 
     for(int j=1;j<domain.res[1]-1;++j)
-    for(int k=1;k<domain.res[2]-1;++k) {
-      float D = gets(i+1,j,k)[0] + gets(i,j+1,k)[1] + gets(i,j,k+1)[2];
+    for(int i=1;i<domain.res[0]-1;++i) {
+      real D = gets(i+1,j,k)[0] + gets(i,j+1,k)[1] + gets(i,j,k+1)[2];
 			D -= gets(i-1,j,k)[0] + gets(i,j-1,k)[1] + gets(i,j,k-1)[2];
 			D *= .5f;
       divergence.set(i,j,k, D ); // ASSUMED CUBIC CELLS!
@@ -190,10 +191,10 @@ template<> void ConstructGrid<Vec3>::divFree(ScalarField boundary, int iteration
 
     // CG
     // r = b - Ax
-//#pragma omp parallel for
-    for(int i=1;i<domain.res[0]-1;++i)
-    for(int j=1;j<domain.res[1]-1;++j)
-    for(int k=1;k<domain.res[2]-1;++k) {
+#pragma omp parallel for
+    for(int k=1;k<domain.res[2]-1;++k) 
+    for(int j=1;j<domain.res[1]-1;++j) 
+    for(int i=1;i<domain.res[0]-1;++i) {
       real center = 0., R = 0.;
       if(skip.get(i-1,j,k)!=1) { center += 1; R += p.gets(i-1,j,k); }
       if(skip.get(i,j-1,k)!=1) { center += 1; R += p.gets(i,j-1,k); }
@@ -206,34 +207,34 @@ template<> void ConstructGrid<Vec3>::divFree(ScalarField boundary, int iteration
       r.set(i,j,k, skip.get(i,j,k)==1 ? 0. : R);
     }
 
+
     // d = r
 #pragma omp parallel for
-    for(int i=1;i<domain.res[0]-1;++i)
+    for(int k=1;k<domain.res[2]-1;++k) 
     for(int j=1;j<domain.res[1]-1;++j)
-    for(int k=1;k<domain.res[2]-1;++k) {
-      d.set(i,j,k, r.gets(i,j,k));
+    for(int i=1;i<domain.res[0]-1;++i) {
+      d.set(i,j,k, r.gets(i,j,k) );
     }
 
     // deltaNew = transpose(r) * r
     real deltaNew = 0.;
-#pragma omp parallel for
-    for(int i=1;i<domain.res[0]-1;++i)
+#pragma omp parallel for reduction(+:deltaNew)
+    for(int k=1;k<domain.res[2]-1;++k)
     for(int j=1;j<domain.res[1]-1;++j)
-    for(int k=1;k<domain.res[2]-1;++k) {
+    for(int i=1;i<domain.res[0]-1;++i) {
       deltaNew += r.gets(i,j,k) * r.gets(i,j,k);
     }
 
     // delta = deltaNew
-    real delta0 = deltaNew;
     const real eps = 1.e-4;
     real maxR = 2. * eps;
     int iter=0;
     while((iter<iterations) && (maxR > eps)) {
       // q = A d
 #pragma omp parallel for
-      for(int i=1;i<domain.res[0]-1;++i)
+      for(int k=1;k<domain.res[2]-1;++k) 
       for(int j=1;j<domain.res[1]-1;++j)
-      for(int k=1;k<domain.res[2]-1;++k) {
+      for(int i=1;i<domain.res[0]-1;++i) {
         real center = 0., R = 0.;
         if(skip.get(i-1,j,k)!=1) { center += 1; R += d.gets(i-1,j,k); }
         if(skip.get(i,j-1,k)!=1) { center += 1; R += d.gets(i,j-1,k); }
@@ -248,9 +249,10 @@ template<> void ConstructGrid<Vec3>::divFree(ScalarField boundary, int iteration
 
       // alpha = deltaNew / (d'q)
       real alpha = 0.f;
-      for(int i=1;i<domain.res[0]-1;++i)
-      for(int j=1;j<domain.res[1]-1;++j)
+#pragma omp parallel for reduction(+:alpha)      
       for(int k=1;k<domain.res[2]-1;++k)
+      for(int j=1;j<domain.res[1]-1;++j)
+      for(int i=1;i<domain.res[0]-1;++i)
       {  alpha += d.gets(i,j,k) * q.gets(i,j,k); }
 
       if(fabs(alpha) > .0) 
@@ -258,43 +260,45 @@ template<> void ConstructGrid<Vec3>::divFree(ScalarField boundary, int iteration
 
       // x = x + alpha * d
 #pragma omp parallel for
-      for(int i=1;i<domain.res[0]-1;++i)
+      for(int k=1;k<domain.res[2]-1;++k) 
       for(int j=1;j<domain.res[1]-1;++j)
-      for(int k=1;k<domain.res[2]-1;++k)
-      { p.set(i,j,k, p.gets(i,j,k) + alpha * d.gets(i,j,k)); }
+      for(int i=1;i<domain.res[0]-1;++i) {
+				p.set(i,j,k, p.gets(i,j,k) + alpha * d.gets(i,j,k)); 
+        r.set(i,j,k, r.gets(i,j,k) - alpha * q.gets(i,j,k)); 
+			}
 
       // r = r - alpha * q
       maxR = 0.;
-      
-      for(int i=1;i<domain.res[0]-1;++i)
+
+//#pragma omp parallel for reduction(+:maxR)      
+      for(int k=1;k<domain.res[2]-1;++k)  
       for(int j=1;j<domain.res[1]-1;++j)
-      for(int k=1;k<domain.res[2]-1;++k) { 
-        r.set(i,j,k, r.gets(i,j,k) - alpha * q.gets(i,j,k)); 
-        //maxR = r.gets(i,j,k) > maxR ? r.gets(i,j,k) : maxR;
-        maxR += r.gets(i,j,k) * r.gets(i,j,k);
+      for(int i=1;i<domain.res[0]-1;++i) {
+        maxR = r.gets(i,j,k) > maxR ? r.gets(i,j,k) : maxR;
       }
-      maxR = std::sqrt( maxR/(domain.res[0]*domain.res[1]*domain.res[2]));
 
       real deltaOld = deltaNew;
 
       // deltaNew = r'r
       deltaNew = 0.;
-      for(int i=1;i<domain.res[0]-1;++i)
-      for(int j=1;j<domain.res[1]-1;++j)
+#pragma omp parallel for reduction(+:deltaNew)      
       for(int k=1;k<domain.res[2]-1;++k)
+      for(int j=1;j<domain.res[1]-1;++j)
+      for(int i=1;i<domain.res[0]-1;++i) 
       { deltaNew += r.gets(i,j,k) * r.gets(i,j,k); }
 
       real beta = deltaNew / deltaOld;
 
       // d = r + beta * d
 #pragma omp parallel for
-      for(int i=1;i<domain.res[0]-1;++i)
+      for(int k=1;k<domain.res[2]-1;++k) 
       for(int j=1;j<domain.res[1]-1;++j)
-      for(int k=1;k<domain.res[2]-1;++k) { 
-        d.set(i,j,k, r.get(i,j,k) + beta * d.gets(i,j,k));
-      }
+      for(int i=1;i<domain.res[0]-1;++i)
+      {  d.set(i,j,k, r.get(i,j,k) + beta * d.gets(i,j,k));  }
+
       // Next iteration...
       ++iter;
+			if(iter%10==0)
       {
         using namespace std;
         cout << "Iteration " << iter << " -- Error: " << maxR << endl;
@@ -302,9 +306,9 @@ template<> void ConstructGrid<Vec3>::divFree(ScalarField boundary, int iteration
     }
 
 #pragma omp parallel for
-    for(int i=0;i<domain.res[0];++i)
+    for(int k=0;k<domain.res[2];++k) 
     for(int j=0;j<domain.res[1];++j)
-    for(int k=0;k<domain.res[2];++k) {
+    for(int i=0;i<domain.res[0];++i) {
       if(i==0) p.set(i,j,k, p.gets(1,j,k));
       if(j==0) p.set(i,j,k, p.gets(i,1,k));
       if(k==0) p.set(i,j,k, p.gets(i,j,1));
@@ -315,9 +319,9 @@ template<> void ConstructGrid<Vec3>::divFree(ScalarField boundary, int iteration
 
 	// Subtract gradient of "pressure"
 #pragma omp parallel for
-    for(int i=1;i<domain.res[0]-1;++i)
+    for(int k=1;k<domain.res[2]-1;++k) 
     for(int j=1;j<domain.res[1]-1;++j)
-    for(int k=1;k<domain.res[2]-1;++k) {
+    for(int i=1;i<domain.res[0]-1;++i) {
       Vec3 V = get(i,j,k);
       V[0] -= (p.gets(i+1,j,k) - p.gets(i-1,j,k)) * .5f; 
       V[1] -= (p.gets(i,j+1,k) - p.gets(i,j-1,k)) * .5f;
