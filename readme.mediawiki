@@ -7,4 +7,6 @@ The Construct is a C++-based library for prototyping volume effects and simulati
 ==Longer Description==
 I have made [http://www.brandonpelfrey.com/blog/?p=1 a short write-up] to complement the examples here on my own personal blog.
 
+==License==
+This software is released under the GNU Public License.
 
