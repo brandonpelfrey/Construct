@@ -70,10 +70,14 @@ struct Field {
 
   Field(ConstructFieldNode<T>* node) : node(NodePtr(node)) { }
   Field(NodePtr node) : node(node) { }
- 
+
   //! Evaluates the underlying expression tree
   T eval(const Vec3& x) const 
   { return node->eval(x); }
+  T operator()(const Vec3& x) const
+  { return eval(x); }
+  
+  // Return the gradient of this expression
   typename FieldInfo<T>::GradType grad(const Vec3& x) const
   { return node->grad(x); }
 };

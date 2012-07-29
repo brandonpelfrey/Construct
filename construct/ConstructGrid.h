@@ -168,6 +168,7 @@ template<> void ConstructGrid<Vec3>::divFree(ScalarField boundary, int iteration
       skip.set(i,j,k,1);
   }
 
+  // TODO: Generalize this for other boundaries and conditions (Dirichlet, etc)
 	// Set no flux for velocity
 #pragma omp parallel for
     for(int k=0;k<domain.res[2];++k) 
@@ -189,7 +190,8 @@ template<> void ConstructGrid<Vec3>::divFree(ScalarField boundary, int iteration
       divergence.set(i,j,k, D ); // ASSUMED CUBIC CELLS!
     }
 
-    // CG
+    // Conjugate Gradient 
+    // (http://en.wikipedia.org/wiki/Conjugate_gradient_method)
     // r = b - Ax
 #pragma omp parallel for
     for(int k=1;k<domain.res[2]-1;++k) 
@@ -206,7 +208,6 @@ template<> void ConstructGrid<Vec3>::divFree(ScalarField boundary, int iteration
       R = -divergence.gets(i,j,k) - (center * p.gets(i,j,k) - R);
       r.set(i,j,k, skip.get(i,j,k)==1 ? 0. : R);
     }
-
 
     // d = r
 #pragma omp parallel for
@@ -227,7 +228,7 @@ template<> void ConstructGrid<Vec3>::divFree(ScalarField boundary, int iteration
 
     // delta = deltaNew
     const real eps = 1.e-4;
-    real maxR = 2. * eps;
+    real maxR = 1.f;
     int iter=0;
     while((iter<iterations) && (maxR > eps)) {
       // q = A d
@@ -298,11 +299,13 @@ template<> void ConstructGrid<Vec3>::divFree(ScalarField boundary, int iteration
 
       // Next iteration...
       ++iter;
-			if(iter%10==0)
+#if 0
+      if(iter%10==0)
       {
         using namespace std;
         cout << "Iteration " << iter << " -- Error: " << maxR << endl;
       }
+#endif
     }
 
 #pragma omp parallel for
