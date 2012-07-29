@@ -1,6 +1,5 @@
 =The Construct=
-A library for prototyping volume effects and simulations
-Author: Brandon Pelfrey (''brandonpelfrey@gmail.com'')
+Author: Brandon Pelfrey (''[brandonpelfrey@gmail.com]'')
 
 ==Description==
 The Construct is a C++-based library for prototyping volume effects and simulations for computer graphics applications. It enables fast and spontaneous ways to try new mathematical ideas regarding continuum dynamics and supports reading and writing results to disk.
