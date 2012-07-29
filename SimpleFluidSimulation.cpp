@@ -57,18 +57,17 @@ ScalarField sphere(Vec3 center, float radius) {
 }
 
 int main(int argc, char **argv) {
-	const unsigned int R = 128; // Resolution
+	const unsigned int R = 64; // Resolution
   Domain domain(R, R, R, Vec3(-1,-1,-1), Vec3(1,1,1));
 
-  auto density_source = mask(sphere(Vec3(0,-1,0), .3f)) * 1.f;
-	auto density = constant(0.f);
+  auto density = mask(sphere(Vec3(0,0,0), .8f));
   auto velocity = constant(Vec3(0,0,0));
 	auto dt = constant(.1f);
 
 	for(int iter=0; iter<1000; ++iter) {
 		//////////////////////////////////////////////////////////	
 		// Advect density using semi-lagrangian advection		
-		density = advect(density, velocity, dt) + dt * density_source;
+		density = advect(density, velocity, dt);
 		density = writeToGrid(density, constant(0.f), domain);
 
 		// Advect velocity similarly
@@ -76,7 +75,7 @@ int main(int argc, char **argv) {
     // Add force upward, proportional to density
     velocity = velocity + dt * density * constant(Vec3(0,1,0));
     // Div-Free Projection
-		velocity = divFree(velocity, constant(0.f), domain, 100);
+		velocity = divFree(velocity, constant(0.f), domain, 50);
 		//////////////////////////////////////////////////////////	
 
 		// Output results
