@@ -57,7 +57,7 @@ ScalarField sphere(Vec3 center, float radius) {
 }
 
 int main(int argc, char **argv) {
-	const unsigned int R = 64; // Resolution
+	const unsigned int R = 128; // Resolution
   Domain domain(R, R, R, Vec3(-1,-1,-1), Vec3(1,1,1));
 
   auto density = mask(sphere(Vec3(0,0,0), .8f));
