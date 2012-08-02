@@ -16,7 +16,9 @@ struct TranslateField : public ConstructFieldNode<T> {
     return field->eval(x - trans);
   }
   typename FieldInfo<T>::GradType grad(const Vec3& x) const {
-    return field->grad(translation->eval(x)) * translation->grad(x);
+    typename FieldInfo<T>::GradType fprime = 
+      field->grad(x-translation->eval(x));
+    return fprime - translation->grad(x) * fprime;
   }
 };
 template<typename T>
