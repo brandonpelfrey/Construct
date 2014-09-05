@@ -257,6 +257,24 @@ ScalarFieldNodes.VectorNorm.prototype = {
 
 ////
 
+ScalarFieldNodes.Cosine = function(scalarFieldNode) {
+    this.scalarFieldNode = scalarFieldNode;
+    this.children = [scalarFieldNode];
+}
+ScalarFieldNodes.Cosine.prototype = {
+    evaluate: function(x) {
+        return Math.cos(this.scalarFieldNode.evaluate(x));
+    },
+    grad: function(x) {
+        var sin_eval = Math.sin(this.scalarFieldNode.evaluate(x));
+        var v_grad = this.scalarFieldNode.grad(x);
+        // TODO : Again... Transpose? Need to check.
+        return v_grad.multiplyScalar(sin_eval);
+    }
+}
+
+////
+
 ScalarFieldNodes.Mask = function(scalarFieldNode) {
     this.scalarFieldNode = scalarFieldNode;
     this.children = [scalarFieldNode];
@@ -308,6 +326,7 @@ ScalarField.prototype.minus = BinaryOp(ScalarField, ScalarFieldNodes.Subtraction
 ScalarField.prototype.multiplyScalar = BinaryOp(ScalarField, ScalarFieldNodes.MultiplyScalar);
 ScalarField.prototype.divideScalar = BinaryOp(ScalarField, ScalarFieldNodes.DivideScalar);
 ScalarField.prototype.warp = BinaryOp(ScalarField, ScalarFieldNodes.Warp);
+ScalarField.prototype.cos = UnaryOp(ScalarField, ScalarFieldNodes.Cosine);
 
 //////////////////////////////////////
 
@@ -376,6 +395,22 @@ VectorFieldNodes.MultiplyScalar.prototype = {
 
 ////
 
+VectorFieldNodes.DivideScalar = function(left, right) {
+    this.left = left;
+    this.right = right;
+    this.children = [left, right];
+}
+VectorFieldNodes.DivideScalar.prototype = {
+    evaluate: function(x) {
+        return this.left.evaluate(x).divideScalar(this.right.evaluate(x));
+    },
+    grad: function(x) {
+        //TODO
+    }
+}
+
+////
+
 VectorFieldNodes.Identity = function() {
     this.children = [];
 }
@@ -423,7 +458,6 @@ VectorFieldNodes.Grad.prototype = {
     }
 }
 
-
 VectorField = function(value) {
     if (value instanceof Vec2) {
         this.node = new VectorFieldNodes.ConstantVectorFieldNode(value);
@@ -431,12 +465,14 @@ VectorField = function(value) {
         this.node = value;
     }
 }
+
 VectorField.prototype.evaluate = function(x) { return this.node.evaluate(x); }
 VectorField.prototype.grad = function(x) { return this.node.grad(x); }
 
 VectorField.prototype.add = BinaryOp(VectorField, VectorFieldNodes.Addition);
 VectorField.prototype.minus = BinaryOp(VectorField, VectorFieldNodes.Subtraction);
 VectorField.prototype.multiplyScalar = BinaryOp(VectorField, VectorFieldNodes.MultiplyScalar);
+VectorField.prototype.divideScalar = BinaryOp(VectorField, VectorFieldNodes.DivideScalar);
 VectorField.prototype.dot = BinaryOp(ScalarField, ScalarFieldNodes.InnerProduct);
 VectorField.prototype.length = UnaryOp(ScalarField, ScalarFieldNodes.VectorNorm);
 VectorField.prototype.warp = BinaryOp(VectorField, VectorFieldNodes.Warp);
@@ -454,5 +490,6 @@ var length = function(vf) { return vf.length(); }
 var warp = function(field, vector_field) { return field.warp(vector_field); }
 var grad = function(field) { return field.grad(); }
 var mask = function(field) { return field.mask(); }
+var cos = function(field) { return field.cos(); }
 
 ///////////////////////////////////////////////////////
