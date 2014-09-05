@@ -238,8 +238,6 @@ var writeToGrid = function(node, options) {
     // *) The returned SFNode must define a uniform textureSampler
     //    (And also somehow cause that texture to bind, and there could be multiple...)
 
-
-
     var sceneRTT = new THREE.Scene();
     var rtTexture = new THREE.WebGLRenderTarget(
         options.resolution[0],
@@ -251,8 +249,12 @@ var writeToGrid = function(node, options) {
             type: THREE.FloatType // Need this for unclamped value range
         });
 
+    var cameraRTT = new THREE.OrthographicCamera( window.innerWidth / - 2, window.innerWidth / 2, window.innerHeight / 2, window.innerHeight / - 2, -10000, 10000 );
+    cameraRTT.position.z = 100;
+
+    // TODO: Setup uniforms from node and get node generated code
+
     var material = new THREE.ShaderMaterial( {
-        // TODO: Get actual uniforms from the node tree
         uniforms: { time: { type: "f", value: 0.0 } },
         vertexShader: document.getElementById( 'vertexShader' ).textContent,
         fragmentShader: document.getElementById( 'fragment_shader_pass_1' ).textContent
@@ -262,6 +264,16 @@ var writeToGrid = function(node, options) {
     var quad = new THREE.Mesh( plane, material );
     quad.position.z = 1;
     sceneRTT.add( quad );
+
+    var renderer = new THREE.WebGLRenderer();
+    renderer.setSize( options.resolution[0], options.resolution[1] );
+    renderer.autoClear = false;
+    renderer.clear();
+    renderer.render( sceneRTT, cameraRTT, rtTexture, true );
+
+    return new ScalarField(new ScalarFieldNodes.WebGLGrid({
+        // TODO: Fill in after removing textureName from WebGLGrid
+    }))
 }
 
 ////////////////
