@@ -33,9 +33,51 @@
 
 <script>
 
+    var make_circle = function (center, radius) {
+        var v = identity().minus(new VectorField(center));
+        var squared_distance = new ScalarField(radius * radius);
+        return squared_distance.minus(dot(v, v));
+    };
+
+    var translate = function(field, translation) {
+        return warp(field, identity().minus(translation));
+    };
+
+    var advect = function (func, velocity, dt) {
+        return warp(func, identity().minus(velocity.multiplyScalar(dt)));
+    };
+
+    var sf = function (value) {
+        return new ScalarField(value);
+    };
+    var vf = function (x, y) {
+        return new VectorField(new Vec2(x, y));
+    };
+
+    var bump = function(position, inverseSpread) {
+        var dx = translate(identity(), position);
+        return sf(1).divideScalar(sf(1).add(dot(dx, dx).multiplyScalar(sf(inverseSpread))))
+    }
+
     var container, stats;
     var camera, scene, renderer;
     var uniforms;
+
+    // Create a bump
+    var u = bump(vf(0.0, 0), 2048);
+
+    var starting_shape = u;
+    var lastFrame = u;//sf(0.0);
+
+    // Create some containing walls (An off-center ciruclar cavity)
+    var wallCenter = vf(0,0.3);
+    var walls = mask(sf(.6).minus(length(translate(identity(), wallCenter))));
+
+    // Our wave function only exists inside the cavity
+    u = u.multiplyScalar(walls);
+    lastFrame = lastFrame.multiplyScalar(walls);
+
+    var startTime = new Date().getTime();
 
     init();
     animate();
@@ -44,127 +86,125 @@
 
         container = document.getElementById('container');
 
-        camera = new THREE.Camera();
-        camera.position.z = 2;
+        camera = new THREE.OrthographicCamera( -1, 1, 1, -1, -2, 2 );
+
+        renderer = new THREE.WebGLRenderer();
+        renderer.autoClear = false;
 
         scene = new THREE.Scene();
-
-        var geometry = new THREE.PlaneGeometry(2, 2);
 
         var pavement_texture = THREE.ImageUtils.loadTexture( "grid_2048.jpg" );
         pavement_texture.wrapS = THREE.RepeatWrapping;
         pavement_texture.wrapT = THREE.RepeatWrapping;
         pavement_texture.repeat.set( 2, 2 );
 
-        uniforms = {
-            time: { type: "f", value: 1.0 },
-            resolution: { type: "v2", value: new THREE.Vector2() },
-            pavement: { type: 't', value: pavement_texture}
-        };
-
-        var make_circle = function (center, radius) {
-            var v = identity().minus(new VectorField(center));
-            var squared_distance = new ScalarField(radius * radius);
-            return squared_distance.minus(dot(v, v));
-        }
-
-        var advect = function (func, velocity, dt) {
-            return warp(func, identity().minus(velocity.multiplyScalar(dt)));
-        }
-
-        var sf = function (value) {
-            return new ScalarField(value);
-        };
-        var vf = function (x, y) {
-            return new VectorField(new Vec2(x, y));
-        };
-
-        var distanceSquared = dot(identity(), identity());
-        var u = sf(1).divideScalar(sf(1).add( distanceSquared.multiplyScalar(sf(5)) ));
-
         var image = new ScalarField(new ScalarFieldNodes.WebGLGrid({
-            textureName: 'pavement',
             texture: pavement_texture,
             gridMin: new Vec2(-1,-1),
             gridMax: new Vec2(1,1)
         }));
 
-        var dist = function(point) {
-            return length(point.minus(identity()));
-        };
-        var distSquared = function(point) {
-            var dx = point.minus(identity());
-            return dot(dx,dx);
-        };
-        var translate = function(field, t) {
-            return warp(field, identity().minus(t));
-        }
-
-        u = image;
-
-        var vx = vf(1, 0).multiplyScalar(dot(identity(), vf(0, 1))); // (y, 0)
-        var vy = vf(0, 1).multiplyScalar(dot(identity(), vf(-1, 0))); // (0, -x)
-
-        var swirl = vx.add(vy);
-
-        var decay = 100;
-        var velocity = translate(swirl, vf(.5,0)).divideScalar(sf(1).add(distSquared(vf(.5,0)).multiplyScalar(sf(decay))));
-        velocity = velocity.multiplyScalar(sf(2));
-
-        var timeParam = webglParameter('time');
-        for (var t = 0; t < 1; ++t) {
-            u = advect(u, velocity, timeParam.multiplyScalar(sf(7)));
-        }
-
-        var shader_code = generate_code_webgl(u.node);
-        console.log(shader_code);
-
-        var material = new THREE.ShaderMaterial( {
-            uniforms: uniforms,
-            vertexShader: document.getElementById( 'vertexShader' ).textContent,
-            fragmentShader: shader_code
-        } );
-
-        var mesh = new THREE.Mesh( geometry, material );
-        scene.add( mesh );
-
-        renderer = new THREE.WebGLRenderer();
         container.appendChild( renderer.domElement );
 
         stats = new Stats();
         stats.domElement.style.position = 'absolute';
         stats.domElement.style.top = '0px';
+        stats.domElement.style.right = '0px';
         container.appendChild( stats.domElement );
 
         onWindowResize();
         window.addEventListener( 'resize', onWindowResize, false );
-
     }
 
     function onWindowResize( event ) {
-
-        uniforms.resolution.value.x = window.innerWidth;
-        uniforms.resolution.value.y = window.innerHeight;
-
-        renderer.setSize( window.innerWidth, window.innerHeight );
-
+        if(uniforms && uniforms.resolution) {
+            uniforms.resolution.value.x = 1024;
+            uniforms.resolution.value.y = 1024;
+        }
+        renderer.setSize( 1024, 1024 );
     }
 
-    //
+    function advanceSimulation() {
+
+        var vx = vf(1, 0).multiplyScalar(dot(identity(), vf(0, 1))); // (y, 0)
+        var vy = vf(0, 1).multiplyScalar(dot(identity(), vf(-1, 0))); // (0, -x)
+        var swirl = vx.add(vy);
+
+        var swirler = function(center) {
+            var s = swirl.divideScalar(sf(1).add(dot(identity(), identity()).multiplyScalar(sf(256 / 2))));
+            return translate(s, center);
+        }
+/*
+        //var space = 0.02;
+        //var velocity = swirler(vf(space,0)).add(swirler(vf(-space,0))).minus(swirler(vf(0,space))).minus(swirler(vf(0,-space)));
+        var velocity = swirler(vf(0,0));
+        var dt = sf(.05);
+        u = advect(u, velocity, dt);
+        lastFrame = advect(lastFrame, velocity, dt);
+*/
+        var dx = vf(1.0/1024.0, 0), dxn = vf(-1.0/1024.0, 0);
+        var dy = vf(0, 1.0/1024.0), dyn = vf(0, -1.0/1024.0);
+
+        var Q = translate(u,dx).add(translate(u,dy)).add(translate(u,dxn)).add(translate(u,dyn)).minus(u.multiplyScalar(sf(4)));
+        var k = sf(1);
+        //var k = sf(Math.cos( (new Date().getTime() - startTime) * .001) > 0 ? 1 : -1);
+
+        var beforeUpdate = u;
+        if(true || Math.cos( (new Date().getTime() - startTime) * .001) > 0) {
+            u = u.multiplyScalar(sf(2)).minus(lastFrame).add(Q.multiplyScalar(k));
+        } else {
+            u = lastFrame.multiplyScalar(sf(-2)).add(u).add(Q.multiplyScalar(k));
+        }
+        lastFrame = beforeUpdate;
+
+        u = u.multiplyScalar(walls);
+        lastFrame = lastFrame.multiplyScalar(walls);
+
+        u = writeToGrid(u, { resolution: [1024, 1024], renderer: renderer });
+
+        var thing_to_render = u.multiplyScalar(u).multiplyScalar(sf(200)).add( mask(sf(.5).minus(walls)).multiplyScalar(sf(.1)) );
+        var webgl_artifacts = generate_code_webgl(thing_to_render.node);
+
+        uniforms = (function(){
+            var result = {};
+            for (var uniform_name in webgl_artifacts.uniforms) {
+                result[uniform_name] = {
+                    type: webgl_artifacts.uniforms[uniform_name].type,
+                    value: webgl_artifacts.uniforms[uniform_name].value
+                };
+            }
+            return result;
+        })();
+
+        uniforms.resolution = { type: "v2", value: new THREE.Vector2(1024, 1024) };
+
+        var screenMaterial = new THREE.ShaderMaterial( {
+            uniforms: uniforms,
+            vertexShader: document.getElementById( 'vertexShader' ).textContent,
+            fragmentShader: webgl_artifacts.code
+        });
+
+        scene = new THREE.Scene();
+        scene.add( new THREE.Mesh( new THREE.PlaneGeometry(2, 2), screenMaterial ) );
+    }
 
     function animate() {
-
         requestAnimationFrame( animate );
 
+        advanceSimulation();
         render();
         stats.update();
-
     }
 
     function render() {
 
-        uniforms.time.value += 0.05;
+        if(uniforms.time) {
+            uniforms.time.value += 0.05;
+        }
 
+        //renderer.setSize( window.innerWidth, window.innerHeight );
+        renderer.setRenderTarget(null);
+        renderer.clear();
         renderer.render( scene, camera );
 
     }

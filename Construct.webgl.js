@@ -27,8 +27,9 @@ ScalarFieldNodes.WebGLParameter.prototype = {
     },
     getWebGLUniform: function() {
         return {
-            type: 'float',
-            name: this.parameterName
+            type: 'f',
+            name: this.parameterName,
+            value: 1.0
         };
     }
 }
@@ -38,7 +39,6 @@ var webglParameter = function(parameterName) { return new ScalarField(new Scalar
 ////
 
 ScalarFieldNodes.WebGLGrid = function(options) {
-    this.textureName = options.textureName;
     this.texture = options.texture;
     this.gridMin = options.gridMin;
     this.gridMax = options.gridMax;
@@ -52,9 +52,13 @@ ScalarFieldNodes.WebGLGrid.prototype = {
         console.error('WebGLGrid not usable in JS');
     },
     getWebGLUniform: function() {
+        if (this._numbering === undefined) {
+            console.log('getWebGLUniform was called on a node before it had been numbered!');
+        }
         return {
-            type: 'sampler2D',
-            name: this.textureName
+            type: 't',
+            name: 'uniform_for_node_' + this._numbering,
+            value: this.texture
         };
     }
 }
@@ -155,7 +159,8 @@ ScalarFieldNodes.WebGLGrid.prototype.codegen_webgl = function(options) {
     code.push('  vec2 gridMin = vec2(' + this.gridMin.values[0] + ', ' + this.gridMin.values[1] + ');');
     code.push('  vec2 gridMax = vec2(' + this.gridMax.values[0] + ', ' + this.gridMax.values[1] + ');');
     code.push('  vec2 uv = (x - gridMin) / (gridMax - gridMin);');
-    code.push('  return texture2D(' + this.textureName +  ', uv).x;');
+    code.push('  if( uv.x<=0.0 || uv.y<=0.0 || uv.x>=1.0 || uv.y>=1.0) return 0.0;');
+    code.push('  return texture2D(' + this.getWebGLUniform().name +  ', uv).x;');
     code.push('}');
     return code;
 }
@@ -221,67 +226,129 @@ VectorFieldNodes.Warp.prototype.codegen_webgl = function(options) {
 
 ////////////////
 
-var writeToGrid = function(node, options) {
-    // options.gridextends
-    // options.resolution
-    // options.outside_field
+// It's really expensive to create render targets, so they're cached here and returned in a cycle when
+// requesting "new ones". This is _terrible_.
+var textureFactory = (function(){
 
-    // 1) Generate a texture of size options.resolution
-    // IMPORTANT: Unclamped GL_FLOAT, single channel for scalar field
+    var _createRenderTarget = function(resolution) {
+        return new THREE.WebGLRenderTarget( resolution[0], resolution[1],
+            {
+                minFilter:THREE.LinearFilter,
+                magFilter:THREE.LinearFilter,/*
+                wrapS:THREE.RenderTargetWrapping,
+                wrapT:THREE.RenderTargetWrapping,*/
+                format:THREE.RGBAFormat,
+                stencilBuffer:false,
+                depthBuffer:false,
+                type:THREE.FloatType
+            });
+    };
 
-    // 2) Generate a render target and appropriate scene to render to
+    var _targets = [];
+    var _currentPtr = 0;
+    var _nTargets = 4;
 
-    // 3) render using the usual codegen_webgl( node )
+    (function(){
+        for(var i=0; i<_nTargets; ++i) {
+            _targets.push(_createRenderTarget([1024, 1024]));
+        }
+    })();
 
-    // 4) Return a new ScalarFieldNode wrapping the texture
+    return {
+        getRenderTarget: function(resolution) {
+            var target = _targets[_currentPtr];
+            _currentPtr = (_currentPtr + 1) % _nTargets;
+            return target;
+        }
+    };
+})();
 
-    // *) The returned SFNode must define a uniform textureSampler
-    //    (And also somehow cause that texture to bind, and there could be multiple...)
+var writeToGrid = function(field, options) {
 
-    var sceneRTT = new THREE.Scene();
-    var rtTexture = new THREE.WebGLRenderTarget(
-        options.resolution[0],
-        options.resolution[1],
-        {
-            minFilter: THREE.LinearFilter,
-            magFilter: THREE.LinearFilter,
-            format: THREE.LuminanceFormat, // Change for Vec2
-            type: THREE.FloatType // Need this for unclamped value range
-        });
+    var rtTexture = textureFactory.getRenderTarget(options.resolution);
 
-    var cameraRTT = new THREE.OrthographicCamera( window.innerWidth / - 2, window.innerWidth / 2, window.innerHeight / 2, window.innerHeight / - 2, -10000, 10000 );
-    cameraRTT.position.z = 100;
+    var cameraRTT = new THREE.OrthographicCamera( -1, 1, 1, -1, -2, 2 );
 
-    // TODO: Setup uniforms from node and get node generated code
+    var webgl_artifacts = generate_code_webgl(field.node);
 
-    var material = new THREE.ShaderMaterial( {
-        uniforms: { time: { type: "f", value: 0.0 } },
+    var uniformsRTT = (function(){
+        var result = {};
+        for (var uniform_name in webgl_artifacts.uniforms) {
+            result[uniform_name] = {
+                type: webgl_artifacts.uniforms[uniform_name].type,
+                value: webgl_artifacts.uniforms[uniform_name].value
+            };
+        }
+        return result;
+    })();
+
+    uniformsRTT.resolution = { type: "v2", value: new THREE.Vector2(options.resolution[0], options.resolution[1]) };
+
+    var materialRTT = new THREE.ShaderMaterial( {
+        uniforms: uniformsRTT,
         vertexShader: document.getElementById( 'vertexShader' ).textContent,
-        fragmentShader: document.getElementById( 'fragment_shader_pass_1' ).textContent
+        fragmentShader: webgl_artifacts.code
     } );
 
-    var plane = new THREE.PlaneGeometry( 2, 2 );
-    var quad = new THREE.Mesh( plane, material );
-    quad.position.z = 1;
-    sceneRTT.add( quad );
+    var sceneRTT = new THREE.Scene();
+    sceneRTT.add( new THREE.Mesh( new THREE.PlaneGeometry( 2, 2 ), materialRTT ) );
 
-    var renderer = new THREE.WebGLRenderer();
+    var renderer = options.renderer;
     renderer.setSize( options.resolution[0], options.resolution[1] );
-    renderer.autoClear = false;
+    renderer.setRenderTarget(rtTexture);
     renderer.clear();
     renderer.render( sceneRTT, cameraRTT, rtTexture, true );
 
+    console.log('asd');
+
     return new ScalarField(new ScalarFieldNodes.WebGLGrid({
-        // TODO: Fill in after removing textureName from WebGLGrid
+        texture: rtTexture,
+        gridMin: new Vec2(-1,-1),
+        gridMax: new Vec2(1,1)
     }))
 }
 
 ////////////////
 
+var number_nodes = function(root_node) {
+    // Post-order traversal of the expression tree so numbering satisfies dependencies
+    var _numbering = 0;
+    function _visit(_node) {
+        for (var i = 0; i < _node.children.length; ++i) {
+            _visit(_node.children[i]);
+        }
+        _node._numbering = _numbering ++;
+    }
+    _visit(root_node);
+}
+
+var get_uniforms = function(root_node) {
+    var uniforms = {};
+    function _visit(_node) {
+        for (var i = 0; i < _node.children.length; ++i) {
+            _visit(_node.children[i]);
+        }
+
+        if (_node.getWebGLUniform) {
+            var uniformParameters = _node.getWebGLUniform();
+            uniforms[uniformParameters.name] = uniformParameters;
+        }
+    }
+    _visit(root_node);
+
+    return uniforms;
+}
+
+///////////////////////////////
+
 var generate_code_webgl = function(root_node) {
 
-    var body_code = [], key, node;
-    var uniforms = {};
+    number_nodes(root_node);
+
+    var uniforms = get_uniforms(root_node);
+
+    var body_code = [], node;
+    var generated_functions = {};
 
     // Thing to make variable names
     var namer = function(node) {
@@ -289,31 +356,29 @@ var generate_code_webgl = function(root_node) {
     }
 
     // Post-order traversal of the expression tree to satisfy dependencies
-    var _numbering = 0;
     function _visit(_node) {
         for (var i = 0; i < _node.children.length; ++i) {
             _visit(_node.children[i]);
         }
-        _node._numbering = _numbering ++;
 
         // Generate code for this node now that it and its children have numberings
         if (_node.codegen_webgl === undefined) {
             console.error('WebGL Not Implmentated for node ', _node);
         }
 
-        if (_node.getWebGLUniform) {
-            var uniformParameters = _node.getWebGLUniform();
-            uniforms[uniformParameters.name] = uniformParameters;
-        }
+        if (!generated_functions.hasOwnProperty(_node._numbering)) {
+            // Generate the lines of code for this node
+            var node_code_lines = _node.codegen_webgl({
+                function_name: namer(_node),
+                function_arguments: _node.children.map(namer)
+            });
 
-        var node_code_lines = _node.codegen_webgl({
-            function_name: namer(_node),
-            function_arguments: _node.children.map(namer)
-        });
+            // Append each of the generated lines for this node to the final code output
+            while (node_code_lines.length > 0) {
+                body_code.push(node_code_lines.shift());
+            }
 
-        // Append each of the generated lines for this node to the final code output
-        while(node_code_lines.length > 0) {
-            body_code.push(node_code_lines.shift());
+            generated_functions[_node._numbering] = true;
         }
     }
     _visit(root_node);
@@ -322,7 +387,11 @@ var generate_code_webgl = function(root_node) {
 
     // Push all the uniforms into the code
     for (var name in uniforms) {
-        result_code.push('uniform ' + uniforms[name].type + ' ' + name + ';');
+        if (uniforms[name].type === 't') {
+            result_code.push('uniform sampler2D ' + name + ';');
+        } else if (uniforms[name].type === 'f') {
+            result_code.push('uniform float ' + name + ';');
+        }
     }
     result_code.push('uniform vec2 resolution;');
 
@@ -338,10 +407,13 @@ var generate_code_webgl = function(root_node) {
     // The top-most node determine the return type.
     // TODO: For now, just stupidly assuming we're always generating code for a scalar field
     result_code.push('  float val = ' + namer(root_node) + '(p);');
-    result_code.push('  gl_FragColor = vec4(val,val,val,val);');
-    result_code.push('  if(dot(p,p)<0.00001) { gl_FragColor = vec4(1,0,0,1); }');
+    result_code.push('  gl_FragColor = vec4(val,val,val,1);');
+    //result_code.push('  if(dot(p,p)<0.00001) { gl_FragColor = vec4(1,0,0,1); }');
 
     result_code.push('}');
 
-    return result_code.join('\n');
+    return {
+        code: result_code.join('\n'),
+        uniforms: uniforms
+    };
 }
