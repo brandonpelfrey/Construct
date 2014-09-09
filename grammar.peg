@@ -1,0 +1,65 @@
+start
+ = field
+
+field
+ = vector_field_arithmetic
+ / floating_point_arithmetic
+
+/////////////////////////////////////////
+
+vector_field_arithmetic
+ = left:vector_field_multiplicative [' ']* "+" [' ']* right:vector_field_arithmetic { return 'VectorFields.Addition(' + left + '.node, ' + right + '.node)'; }
+ / left:vector_field_multiplicative [' ']* "-" [' ']* right:vector_field_arithmetic { return 'VectorFields.Subtraction(' + left + '.node, ' + right + '.node)'; }
+ / vector_field_multiplicative
+
+vector_field_multiplicative
+ = left:vector_field [' ']* "*" [' ']* right:scalar_field_arithmetic { return 'VectorFields.MultiplyScalar(' + left + '.node, ' + right + '.node)'; }
+ / left:vector_field [' ']* "/" [' ']* right:scalar_field_arithmetic { return 'VectorFields.DivideScalar(' + left + '.node, ' + right + '.node)'; }
+ / vector_field
+
+vector_field
+ = val:constant_vec2 { return 'VectorFields.Constant(' + val[0] + ',' + val[1] + ')'; }
+ / "identity()" { return 'new VectorFields.Identity()'; }
+
+constant_vec2
+ = "vec2(" [' ']* x:floating_point_arithmetic "," [' ']* y:floating_point_arithmetic [' ']* ")" { return [x,y]; }
+
+/////////////////////////////////////////
+
+scalar_field_arithmetic
+ = left:scalar_field_multiplicative [' ']*  "+" [' ']*  right:scalar_field_arithmetic { return 'ScalarFields.Addition(' + left + '.node, ' + right + '.node)'; }
+ / left:scalar_field_multiplicative [' ']*  "-" [' ']*  right:scalar_field_arithmetic { return 'ScalarFields.Subtraction(' + left + '.node, ' + right + '.node)'; }
+ / scalar_field_multiplicative
+
+scalar_field_multiplicative
+ = left:scalar_field [' ']*  "*" [' ']*  right:scalar_field_multiplicative { return 'ScalarFields.MultiplyScalar(' + left + '.node, ' + right + '.node)'; }
+ / left:scalar_field [' ']*  "/" [' ']*  right:scalar_field_multiplicative { return 'ScalarFields.DivideScalar(' + left + '.node, ' + right + '.node)'; }
+ / scalar_field
+
+scalar_field
+ = val:floating_point_arithmetic { return 'ScalarFields.Constant(' + val + ')'; }
+
+/////////////////////////////////////////
+
+floating_point_arithmetic
+ = left:floating_point_multiplicative [' ']*  "+" [' ']*  right:floating_point_arithmetic { return left + right; }
+ / left:floating_point_multiplicative [' ']*  "-" [' ']*  right:floating_point_arithmetic { return left - right; }
+ / floating_point_multiplicative
+
+floating_point_multiplicative
+ = left:floating_point [' ']*  "*" [' ']*  right:floating_point_multiplicative { return left * right; }
+ / left:floating_point [' ']*  "/" [' ']*  right:floating_point_multiplicative { return left / right; }
+ / floating_point
+
+floating_point
+ = "(" arithmetic:floating_point_arithmetic ")" { return arithmetic; }
+ / int_str:[0-9]+ decimal_part:decimal_part { return parseFloat(int_str.join('')) + decimal_part; }
+ / "-" floating_point:floating_point { return -1.0 * floating_point; }
+ / val:decimal_part { return val; }
+ / int_value:integer { return 1.0 * int_value; }
+
+decimal_part
+ = str: ("." [0-9]+) { return parseFloat('.' + str[1].join('')); }
+
+integer
+ = str:[0-9]+ { return parseInt(str.join(''), 10); }
