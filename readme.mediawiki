@@ -5,7 +5,7 @@ Author: Brandon Pelfrey (''[brandonpelfrey@gmail.com]'')
 The Construct is a C++-based library for prototyping volume effects and simulations for computer graphics applications. It enables fast and efficient ways to try new mathematical ideas regarding dynamics and supports reading and writing results to disk. It is a power tool for prototyping the effects of volume and simulations for computer graphics applications.
 
 ===Fluid Simulation===
-This section demonstrates a fluid simulation and system. It simulates the behavior of a fluid in a 3D domain. The key components include the density field, velocity field, time stepping, and force/projection. 
+This section demonstrates a fluid simulation and system. It simulates the behavior of a fluid in a 3D domain. The key components included are the density field, velocity field, time stepping, and force/projection. 
   - The density field is the concentration of fluid at each individual grid point. 
   - Velocity field is defined the flow direction and magnitude of the fluid at each individual point. 
   - Time stepping is a the simulation progressing in time steps. Based on these steps, the velocity and time fields are updated. 
