@@ -2,11 +2,25 @@
 Author: Brandon Pelfrey (''[brandonpelfrey@gmail.com]'')
 
 ==Description==
-The Construct is a C++-based library for prototyping volume effects and simulations for computer graphics applications. It enables fast and spontaneous ways to try new mathematical ideas regarding continuum dynamics and supports reading and writing results to disk.
+The Construct is a C++-based library for prototyping volume effects and simulations for computer graphics applications. It enables fast and efficient ways to try new mathematical ideas regarding dynamics and supports reading and writing results to disk. It is a power tool for prototyping the effects of volume and simulations for computer graphics applications.
 
-==Longer Description==
-I have made [http://www.brandonpelfrey.com/blog/?p=1 a short write-up] to complement the examples here on my own personal blog.
+===Fluid Simulation===
+This section demonstrates a fluid simulation and system. It simulates the behavior of a fluid in a 3D domain. The key components include the density field, velocity field, time stepping, and force/projection. 
+  - The density field is the concentration of fluid at each individual grid point. 
+  - Velocity field is defined the flow direction and magnitude of the fluid at each individual point. 
+  - Time stepping is a the simulation progressing in time steps. Based on these steps, the velocity and time fields are updated. 
+  - Force and projection are an upward force that is applied to the fluid.
+
+Overall, this section will show the fluid's general behavior at each given time step.
+
+===Mathematical Operations and Field Deratives===
+This section demonstrates various mathematical operations and field derivatives using the Construct library. The library allows fast and intuintive ways to experiment with mathematical concepts related to dynamics. It essentially explores and manipulates fields, performs algebraic operations, and calculates the derivatives of those fields. 
+
+This will show you how to use the Construct library for mathematical manipulation of fields in computer graphics simulations in order to understand how it perform the specified operations and display the results.
+
+=Getting Started=
+
+To begin using The Construct, here are more details and in-depth documentation in this blog: http://www.brandonpelfrey.com .
 
 ==License==
 This software is released under the GNU Public License.
-
